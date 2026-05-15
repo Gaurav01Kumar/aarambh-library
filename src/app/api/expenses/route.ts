@@ -1,20 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
-import Expense from '@/lib/models/Expense';
+import { NextRequest, NextResponse } from "next/server";
+import connectDB from "@/lib/mongodb";
+import Expense from "@/lib/models/Expense";
 
+// GET all expenses
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
     const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const type = searchParams.get('type') || '';
-    const category = searchParams.get('category') || '';
-    const month = searchParams.get('month') || '';
-    const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
 
-    const query: any = {};
+    const page = Number(searchParams.get("page") || "1");
+    const limit = Number(searchParams.get("limit") || "10");
+
+    const type = searchParams.get("type");
+    const category = searchParams.get("category");
+    const month = searchParams.get("month");
+
+    const year = Number(
+      searchParams.get("year") || new Date().getFullYear()
+    );
+
+    const query: Record<string, unknown> = {};
 
     if (type) {
       query.type = type;
@@ -33,8 +39,9 @@ export async function GET(request: NextRequest) {
     }
 
     const skip = (page - 1) * limit;
+
     const expenses = await Expense.find(query)
-      .populate('processedBy', '-password')
+      .populate("processedBy", "-password")
       .sort({ date: -1 })
       .skip(skip)
       .limit(limit);
@@ -52,14 +59,19 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error fetching expenses:', error);
+    console.error("Error fetching expenses:", error);
+
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch expenses' },
+      {
+        success: false,
+        error: "Failed to fetch expenses",
+      },
       { status: 500 }
     );
   }
 }
 
+// CREATE expense
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
@@ -68,16 +80,25 @@ export async function POST(request: NextRequest) {
 
     const expense = await Expense.create(body);
 
-    return NextResponse.json({
-      success: true,
-      data: expense,
-    }, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating expense:', error);
+    return NextResponse.json(
+      {
+        success: true,
+        data: expense,
+      },
+      { status: 201 }
+    );
+  } catch (error: unknown) {
+    console.error("Error creating expense:", error);
+
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Failed to create expense";
+
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to create expense'
+        error: errorMessage,
       },
       { status: 500 }
     );

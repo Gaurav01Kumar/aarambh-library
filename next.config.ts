@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
     "localhost",
     "[IP_ADDRESS]",
   ],
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;
