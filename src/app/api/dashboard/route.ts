@@ -3,32 +3,25 @@ import connectDB from '@/lib/mongodb';
 import Student from '@/lib/models/Student';
 import Seat from '@/lib/models/Seat';
 import Transaction from '@/lib/models/Transaction';
-import Expense from '@/lib/models/Expense';
 import Attendance from '@/lib/models/Attendance';
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    const searchParams = request.nextUrl.searchParams;
-    const month = searchParams.get('month') || new Date().toISOString().slice(0, 7);
-    const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
-
     // Get total students
     const totalStudents = await Student.countDocuments({ isActive: true });
 
     // Get occupied seats
-    const occupiedSeats = await Seat.countDocuments({ isOccupied: true, isAvailable: true });
-    const totalSeats = await Seat.countDocuments({ isAvailable: true });
+    const occupiedSeats = await Seat.countDocuments({ isOccupied: true });
+    const totalSeats = await Seat.countDocuments({});
 
-    // Get revenue for the month
-    const revenue = await Transaction.aggregate([
+    // Get revenue - all completed income transactions
+    const revenueResult = await Transaction.aggregate([
       {
         $match: {
-          month: month,
-          year: year,
+          type: { $in: ['income', 'fee', 'deposit'] },
           status: 'completed',
-          type: { $in: ['fee', 'deposit'] }
         }
       },
       {
@@ -39,13 +32,12 @@ export async function GET(request: NextRequest) {
       }
     ]);
 
-    // Get expenses for the month
-    const expenses = await Expense.aggregate([
+    // Get expenses - all expense transactions
+    const expensesResult = await Transaction.aggregate([
       {
         $match: {
-          month: month,
-          year: year,
-          type: 'expense'
+          type: 'expense',
+          status: 'completed',
         }
       },
       {
@@ -72,7 +64,6 @@ export async function GET(request: NextRequest) {
 
     // Get recent transactions
     const recentTransactions = await Transaction.find()
-      .populate('student')
       .sort({ createdAt: -1 })
       .limit(5);
 
@@ -91,9 +82,9 @@ export async function GET(request: NextRequest) {
           occupiedSeats,
           totalSeats,
           availableSeats: totalSeats - occupiedSeats,
-          revenue: revenue[0]?.total || 0,
-          expenses: expenses[0]?.total || 0,
-          profit: (revenue[0]?.total || 0) - (expenses[0]?.total || 0),
+          revenue: revenueResult[0]?.total || 0,
+          expenses: expensesResult[0]?.total || 0,
+          profit: (revenueResult[0]?.total || 0) - (expensesResult[0]?.total || 0),
           todayAttendance,
           overdueStudents,
         },

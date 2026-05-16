@@ -10,7 +10,9 @@
     "seed:roles": "tsx scripts/seed-roles.ts",
     "seed:users": "tsx scripts/seed-users.ts",
     "seed:seats": "tsx scripts/seed-seats.ts",
-    "seed:all": "npm run seed:roles && npm run seed:users && npm run seed:seats"
+    "seed:all": "npm run seed:roles && npm run seed:users && npm run seed:seats",
+    "report:monthly": "tsx scripts/monthly-report.ts",
+    "report:daily": "tsx scripts/daily-report.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

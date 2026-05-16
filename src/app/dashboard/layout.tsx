@@ -19,15 +19,18 @@ import {
   X,
   BookOpen,
   CreditCard,
-  Wallet
+  Wallet,
+  FileText
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Students', href: '/dashboard/students', icon: Users },
   { name: 'Seats', href: '/dashboard/seats', icon: Armchair },
+  { name: 'Payments', href: '/dashboard/payments', icon: CreditCard },
   { name: 'Accounting', href: '/dashboard/finance', icon: Wallet },
   { name: 'Attendance', href: '/dashboard/attendance', icon: Calendar },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Reminders', href: '/dashboard/reminders', icon: Bell },
   { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },

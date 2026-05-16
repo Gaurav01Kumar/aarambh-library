@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Transaction from '@/lib/models/Transaction';
+import Student from '@/lib/models/Student';
+import Payment from '@/lib/models/Payment';
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
     const searchParams = request.nextUrl.searchParams;
-    const type = searchParams.get('type'); // income or expense
+    const type = searchParams.get('type');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
@@ -25,7 +27,6 @@ export async function GET(request: NextRequest) {
 
     const transactions = await Transaction.find(query).sort({ date: -1 });
 
-    // Calculate totals for reporting
     const summary = await Transaction.aggregate([
       { $match: query },
       {
@@ -65,6 +66,25 @@ export async function POST(request: NextRequest) {
     }
 
     const transaction = await Transaction.create(body);
+
+    // If this is a fee payment, also update student status and create payment record
+    if (body.type === 'income' && body.category === 'Fees' && body.studentId) {
+      await Student.findByIdAndUpdate(body.studentId, {
+        feeStatus: 'paid',
+      });
+
+      await Payment.create({
+        studentId: body.studentId,
+        studentName: body.studentName || 'Unknown',
+        amount: body.amount,
+        months: body.months || 1,
+        totalPrice: body.amount,
+        paymentMethod: body.paymentMethod || 'cash',
+        date: body.date,
+        transactionId: transaction._id.toString(),
+        status: 'completed',
+      });
+    }
 
     return NextResponse.json({
       success: true,
