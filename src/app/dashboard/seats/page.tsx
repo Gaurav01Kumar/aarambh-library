@@ -193,6 +193,11 @@ export default function SeatsPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // If NO date is set, we strictly consider them unpaid for the current month
+    if (!student.feeDueDate && !student.subscriptionExpiry) {
+      return true;
+    }
+
     if (student.feeDueDate) {
       const dueDate = new Date(student.feeDueDate);
       dueDate.setHours(0, 0, 0, 0);

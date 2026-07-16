@@ -119,6 +119,31 @@ export default function StudentsPage() {
     setShowQRCode(true);
   };
 
+  const isPaymentPending = (student: any) => {
+    if (student.feeStatus !== 'paid') return true;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (!student.feeDueDate && !student.subscriptionExpiry) {
+      return true;
+    }
+
+    if (student.feeDueDate) {
+      const dueDate = new Date(student.feeDueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      if (dueDate < today) return true;
+    }
+    
+    if (student.subscriptionExpiry) {
+      const expiry = new Date(student.subscriptionExpiry);
+      expiry.setHours(0, 0, 0, 0);
+      if (expiry < today) return true;
+    }
+    
+    return false;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'paid':
@@ -161,7 +186,7 @@ export default function StudentsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-500">
-              {students.filter(s => s.feeStatus === 'paid').length}
+              {students.filter(s => !isPaymentPending(s)).length}
             </div>
           </CardContent>
         </Card>
@@ -171,7 +196,7 @@ export default function StudentsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-500">
-              {students.filter(s => s.feeStatus === 'unpaid').length}
+              {students.filter(s => isPaymentPending(s)).length}
             </div>
           </CardContent>
         </Card>
@@ -246,8 +271,8 @@ export default function StudentsPage() {
                       {student.startTime ? `${formatTime(student.startTime)} - ${formatTime(student.endTime)}` : '-'}
                     </TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(student.feeStatus)}`}>
-                        {student.feeStatus}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${!isPaymentPending(student) ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300'}`}>
+                        {isPaymentPending(student) ? (student.feeStatus !== 'paid' ? student.feeStatus.toUpperCase() : 'OVERDUE') : 'PAID'}
                       </span>
                     </TableCell>
                     <TableCell>₹{student.feeAmount.toLocaleString()}</TableCell>
