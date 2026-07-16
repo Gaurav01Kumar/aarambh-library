@@ -44,6 +44,19 @@ interface Subscription {
   shifts: Shift[];
 }
 
+function formatTime(timeStr: string) {
+  if (!timeStr) return '--:--';
+  const [h, m] = timeStr.split(':');
+  if (!h || !m) return timeStr;
+  
+  let hour = parseInt(h);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  hour = hour ? hour : 12;
+  
+  return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
+}
+
 export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -290,7 +303,7 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
                             <span className="text-[10px] font-bold text-slate-500 uppercase">{shift.label || `Shift ${idx + 1}`}</span>
                             {selectedShiftIndex === idx && <Check className="h-3 w-3 text-primary" />}
                           </div>
-                          <span className="text-xs font-bold">{shift.startTime} - {shift.endTime}</span>
+                          <span className="text-xs font-bold">{formatTime(shift.startTime)} - {formatTime(shift.endTime)}</span>
                         </button>
                       ))}
                     </div>
@@ -344,7 +357,7 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-bold flex items-center gap-2">
                     <Armchair className="h-4 w-4" />
-                    3. Pick a Seat (Shift: {formData.startTime || 'Select Plan First'}) *
+                    3. Pick a Seat (Shift: {formData.startTime ? formatTime(formData.startTime) : 'Select Plan First'}) *
                   </Label>
                   <div className="flex gap-2">
                     <Select value={currentFloor} onValueChange={setCurrentFloor}>
@@ -406,7 +419,7 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
           <DialogFooter className="pt-6 border-t flex items-center justify-between sm:justify-between w-full">
             <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
               {formData.startTime && (
-                <div className="flex items-center gap-1"><Clock className="h-3 w-3" /> {formData.startTime} - {formData.endTime}</div>
+                <div className="flex items-center gap-1"><Clock className="h-3 w-3" /> {formatTime(formData.startTime)} - {formatTime(formData.endTime)}</div>
               )}
               {formData.seatNumber && (
                 <div className="flex items-center gap-1"><Armchair className="h-3 w-3" /> Seat {formData.seatNumber}</div>

@@ -56,6 +56,14 @@ const OrganizationSchema = new mongoose.Schema({
       type: Number,
       default: 15, // minutes
     },
+    allowedWifiIps: [{
+      type: String,
+    }],
+    location: {
+      latitude: { type: Number, default: 0 },
+      longitude: { type: Number, default: 0 },
+      radiusMeters: { type: Number, default: 50 },
+    },
   },
   isActive: {
     type: Boolean,

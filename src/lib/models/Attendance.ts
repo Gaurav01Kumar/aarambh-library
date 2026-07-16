@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const AttendanceSchema = new mongoose.Schema({
   student: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Student',
+    ref: 'LibraryMember',
     required: true,
   },
   date: {
@@ -35,6 +35,29 @@ const AttendanceSchema = new mongoose.Schema({
   notes: {
     type: String,
   },
+  deviceId: {
+    type: String,
+  },
+  wifiIp: {
+    type: String,
+  },
+  latitude: {
+    type: Number,
+  },
+  longitude: {
+    type: Number,
+  },
+  ipAddress: {
+    type: String,
+  },
+  status: {
+    type: String,
+    enum: ['success', 'failed'],
+    default: 'success',
+  },
+  failureReason: {
+    type: String,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -50,4 +73,9 @@ AttendanceSchema.pre('save', function(next) {
   ;
 });
 
-export default mongoose.models?.Attendance || mongoose.model('Attendance', AttendanceSchema);
+// Force reload model in dev to catch schema changes
+if (mongoose.models.Attendance) {
+  delete mongoose.models.Attendance;
+}
+
+export default mongoose.model('Attendance', AttendanceSchema);

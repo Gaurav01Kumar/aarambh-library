@@ -25,6 +25,9 @@ interface DashboardStats {
     expenses: number;
     profit: number;
     todayAttendance: number;
+    absentToday: number;
+    expiringSoonCount: number;
+    totalActiveStudents: number;
     overdueStudents: number;
   };
   students: {
@@ -33,6 +36,8 @@ interface DashboardStats {
     total: number;
   };
   recentTransactions: any[];
+  suspiciousAttempts: any[];
+  expiringMemberships: any[];
 }
 
 export default function DashboardPage() {
@@ -97,34 +102,41 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
-          title="Total Students"
-          value={stats.overview.totalStudents}
+          title="Total Active"
+          value={stats.overview.totalActiveStudents}
           icon={<Users className="h-5 w-5" />}
-          trend="+12.5%"
+          trend="Active"
           trendUp={true}
         />
         <StatCard
-          title="Occupied Seats"
-          value={`${stats.overview.occupiedSeats}/${stats.overview.totalSeats}`}
-          icon={<Armchair className="h-5 w-5" />}
-          trend={`${occupancyRate}%`}
-          trendUp={true}
-        />
-        <StatCard
-          title="Revenue"
-          value={`₹${stats.overview.revenue.toLocaleString()}`}
-          icon={<DollarSign className="h-5 w-5" />}
-          trend="+8.2%"
-          trendUp={true}
-        />
-        <StatCard
-          title="Today's Attendance"
+          title="Present Today"
           value={stats.overview.todayAttendance}
           icon={<Calendar className="h-5 w-5" />}
-          trend="+5.1%"
+          trend="In Library"
           trendUp={true}
+        />
+        <StatCard
+          title="Absent Today"
+          value={stats.overview.absentToday}
+          icon={<AlertCircle className="h-5 w-5 text-orange-500" />}
+          trend="Not Here"
+          trendUp={false}
+        />
+        <StatCard
+          title="Empty Seats"
+          value={stats.overview.availableSeats}
+          icon={<Armchair className="h-5 w-5" />}
+          trend="Available"
+          trendUp={true}
+        />
+        <StatCard
+          title="Expiring Soon"
+          value={stats.overview.expiringSoonCount}
+          icon={<AlertCircle className="h-5 w-5 text-rose-500" />}
+          trend="< 7 Days"
+          trendUp={false}
         />
       </div>
 
@@ -263,6 +275,65 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Security Alerts and Expiring Memberships */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border-rose-200 dark:border-rose-900/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-500">
+              <AlertCircle className="h-5 w-5" />
+              Suspicious Attendance Attempts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.suspiciousAttempts?.length > 0 ? (
+              <div className="space-y-4">
+                {stats.suspiciousAttempts.map((attempt) => (
+                  <div key={attempt._id} className="flex flex-col gap-1 border-b pb-3 last:border-0">
+                    <div className="flex justify-between items-start">
+                      <span className="font-semibold">{attempt.studentName} (Seat: {attempt.seatNumber})</span>
+                      <span className="text-xs text-slate-500">{new Date(attempt.time).toLocaleTimeString()}</span>
+                    </div>
+                    <span className="text-sm text-rose-600 dark:text-rose-400">{attempt.reason}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 text-center py-4">No suspicious activity detected today.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-orange-200 dark:border-orange-900/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-600 dark:text-orange-500">
+              <Calendar className="h-5 w-5" />
+              Memberships Expiring Soon
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.expiringMemberships?.length > 0 ? (
+              <div className="space-y-4">
+                {stats.expiringMemberships.map((member) => (
+                  <div key={member._id} className="flex justify-between items-center border-b pb-3 last:border-0">
+                    <div>
+                      <span className="font-semibold block">{member.name}</span>
+                      <span className="text-xs text-slate-500">Seat: {member.seatNumber}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-medium text-orange-600 dark:text-orange-400">
+                        {new Date(member.expiryDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 text-center py-4">No memberships expiring in the next 7 days.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -30,6 +30,7 @@ export function EditSeatDialog({ seat, onSeatUpdated }: EditSeatDialogProps) {
     section: seat.section || 'A',
     isAC: seat.isAC || false,
     isAvailable: seat.isAvailable !== false,
+    genderCategory: seat.genderCategory || 'any',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,6 +127,23 @@ export function EditSeatDialog({ seat, onSeatUpdated }: EditSeatDialogProps) {
                 checked={formData.isAC}
                 onCheckedChange={(checked) => setFormData({ ...formData, isAC: checked })}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Category (Boys / Girls)</Label>
+              <Select
+                value={formData.genderCategory}
+                onValueChange={(value) => setFormData({ ...formData, genderCategory: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any / Unisex</SelectItem>
+                  <SelectItem value="boys">Boys Only</SelectItem>
+                  <SelectItem value="girls">Girls Only</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">

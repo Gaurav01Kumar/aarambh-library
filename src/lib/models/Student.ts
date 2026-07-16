@@ -65,6 +65,16 @@ const StudentSchema = new mongoose.Schema({
   endTime: {
     type: String, // HH:mm
   },
+  preferences: {
+    notifications: {
+      email: { type: Boolean, default: true },
+      sms: { type: Boolean, default: false },
+    },
+  },
+  registeredDeviceId: {
+    type: String,
+    default: null,
+  },
   attendance: [{
     date: {
       type: Date,

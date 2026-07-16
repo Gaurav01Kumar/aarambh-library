@@ -9,8 +9,9 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    // Get total students
-    const totalStudents = await Student.countDocuments({ isActive: true });
+    // Get all students for complex logic
+    const students = await Student.find({ isActive: true });
+    const totalActiveStudents = students.length;
 
     // Get occupied seats
     const occupiedSeats = await Seat.countDocuments({ isOccupied: true });
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
         }
       }
     ]);
+    const revenue = revenueResult[0]?.total || 0;
 
     // Get expenses - all expense transactions
     const expensesResult = await Transaction.aggregate([
@@ -47,53 +49,78 @@ export async function GET(request: NextRequest) {
         }
       }
     ]);
+    const expenses = expensesResult[0]?.total || 0;
 
-    // Get paid vs unpaid students
-    const paidStudents = await Student.countDocuments({ feeStatus: 'paid', isActive: true });
-    const unpaidStudents = await Student.countDocuments({ feeStatus: 'unpaid', isActive: true });
-
-    // Get today's attendance
+    // New Attendance Logic for Today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const todayAttendance = await Attendance.countDocuments({
-      date: { $gte: today, $lt: tomorrow }
-    });
+    const studentsPresent = students.filter(s => 
+      s.attendance?.some((record: any) => {
+        const recordDate = new Date(record.date);
+        recordDate.setHours(0, 0, 0, 0);
+        return recordDate.getTime() === today.getTime();
+      })
+    ).length;
+
+    const studentsAbsent = totalActiveStudents - studentsPresent;
+
+    // Subscriptions Expiring Soon (in next 7 days)
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    
+    const expiringSoon = students.filter(s => 
+      s.subscriptionExpiry && 
+      new Date(s.subscriptionExpiry) <= sevenDaysFromNow
+    );
 
     // Get recent transactions
     const recentTransactions = await Transaction.find()
       .sort({ createdAt: -1 })
       .limit(5);
 
-    // Get overdue students
-    const overdueStudents = await Student.countDocuments({
-      feeStatus: 'unpaid',
-      feeDueDate: { $lt: new Date() },
-      isActive: true
-    });
+    // Get suspicious attendance attempts
+    const suspiciousAttempts = await Attendance.find({ status: 'failed' })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate('student', 'name seatNumber');
 
     return NextResponse.json({
       success: true,
       data: {
         overview: {
-          totalStudents,
+          totalStudents: totalActiveStudents,
           occupiedSeats,
           totalSeats,
           availableSeats: totalSeats - occupiedSeats,
-          revenue: revenueResult[0]?.total || 0,
-          expenses: expensesResult[0]?.total || 0,
-          profit: (revenueResult[0]?.total || 0) - (expensesResult[0]?.total || 0),
-          todayAttendance,
-          overdueStudents,
+          revenue,
+          expenses,
+          profit: revenue - expenses,
+          todayAttendance: studentsPresent,
+          absentToday: studentsAbsent,
+          expiringSoonCount: expiringSoon.length,
+          totalActiveStudents,
+          overdueStudents: students.filter(s => s.feeStatus === 'unpaid').length,
         },
         students: {
-          paid: paidStudents,
-          unpaid: unpaidStudents,
-          total: totalStudents,
+          paid: students.filter(s => s.feeStatus === 'paid').length,
+          unpaid: students.filter(s => s.feeStatus === 'unpaid').length,
+          total: totalActiveStudents,
         },
         recentTransactions,
+        suspiciousAttempts: suspiciousAttempts.map(a => ({
+          _id: a._id,
+          studentName: a.student?.name || 'Unknown',
+          seatNumber: a.seatNumber,
+          reason: a.failureReason,
+          time: a.createdAt,
+        })),
+        expiringMemberships: expiringSoon.map(s => ({
+          _id: s._id,
+          name: s.name,
+          seatNumber: s.seatNumber,
+          expiryDate: s.subscriptionExpiry
+        })),
       },
     });
   } catch (error) {

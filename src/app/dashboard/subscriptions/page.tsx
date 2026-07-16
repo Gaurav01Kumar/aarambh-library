@@ -29,6 +29,19 @@ interface Subscription {
   isActive: boolean;
 }
 
+function formatTime(timeStr: string) {
+  if (!timeStr) return '--:--';
+  const [h, m] = timeStr.split(':');
+  if (!h || !m) return timeStr;
+  
+  let hour = parseInt(h);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  hour = hour ? hour : 12; // the hour '0' should be '12'
+  
+  return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
+}
+
 export default function SubscriptionsPage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +53,7 @@ export default function SubscriptionsPage() {
   const fetchSubscriptions = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/subscriptions');
+      const response = await fetch('/api/subscriptions?limit=1000');
       const data = await response.json();
       if (data.success) {
         setSubscriptions(data.data);
@@ -130,7 +143,7 @@ export default function SubscriptionsPage() {
                   <TableCell>
                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                       <Clock className="h-3 w-3" />
-                      {sub.startTime || '--:--'} - {sub.endTime || '--:--'}
+                      {formatTime(sub.startTime)} - {formatTime(sub.endTime)}
                     </div>
                   </TableCell>
                   <TableCell>

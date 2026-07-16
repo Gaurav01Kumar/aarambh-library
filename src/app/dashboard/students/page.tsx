@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Plus, Filter, MoreVertical, Edit, Trash2, QrCode } from 'lucide-react';
+import { Search, Plus, Filter, MoreVertical, Edit, Trash2, QrCode, SmartphoneNfc } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +34,19 @@ interface Student {
   feeDueDate?: string;
   isActive: boolean;
   joinDate: string;
+}
+
+function formatTime(timeStr?: string) {
+  if (!timeStr) return '--:--';
+  const [h, m] = timeStr.split(':');
+  if (!h || !m) return timeStr;
+  
+  let hour = parseInt(h);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  hour = hour ? hour : 12;
+  
+  return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
 }
 
 export default function StudentsPage() {
@@ -79,6 +92,25 @@ export default function StudentsPage() {
       }
     } catch (error) {
       console.error('Error deleting student:', error);
+    }
+  };
+
+  const handleResetDevice = async (id: string) => {
+    if (!confirm('Are you sure you want to reset the registered device for this student? They will need to re-register their new device.')) return;
+
+    try {
+      const response = await fetch(`/api/students/${id}/reset-device`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('Device reset successfully');
+      } else {
+        alert(data.error || 'Failed to reset device');
+      }
+    } catch (error) {
+      console.error('Error resetting device:', error);
+      alert('Network error while resetting device');
     }
   };
 
@@ -196,6 +228,7 @@ export default function StudentsPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Seat</TableHead>
+                  <TableHead>Shift</TableHead>
                   <TableHead>Fee Status</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Joined</TableHead>
@@ -209,6 +242,9 @@ export default function StudentsPage() {
                     <TableCell>{student.email}</TableCell>
                     <TableCell>{student.phone}</TableCell>
                     <TableCell>{student.seatNumber || '-'}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap text-slate-500">
+                      {student.startTime ? `${formatTime(student.startTime)} - ${formatTime(student.endTime)}` : '-'}
+                    </TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(student.feeStatus)}`}>
                         {student.feeStatus}
@@ -218,7 +254,7 @@ export default function StudentsPage() {
                     <TableCell>{new Date(student.joinDate).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                        <DropdownMenuTrigger>
                           <Button variant="ghost" size="icon">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
@@ -227,6 +263,10 @@ export default function StudentsPage() {
                           <DropdownMenuItem onClick={() => handleViewQRCode(student)}>
                             <QrCode className="h-4 w-4 mr-2" />
                             View QR Code
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleResetDevice(student._id)}>
+                            <SmartphoneNfc className="h-4 w-4 mr-2" />
+                            Reset Device
                           </DropdownMenuItem>
                           <EditStudentDialog student={student} onStudentUpdated={fetchStudents} />
                           <DropdownMenuItem

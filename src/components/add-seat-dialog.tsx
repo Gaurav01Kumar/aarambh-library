@@ -33,6 +33,7 @@ export function AddSeatDialog({ onSeatAdded }: AddSeatDialogProps) {
   const [floor, setFloor] = useState('Ground Floor');
   const [section, setSection] = useState('A');
   const [isAC, setIsAC] = useState(false);
+  const [genderCategory, setGenderCategory] = useState('any');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +47,7 @@ export function AddSeatDialog({ onSeatAdded }: AddSeatDialogProps) {
           floor,
           section,
           isAC,
+          genderCategory,
           isAvailable: true,
           isOccupied: false,
           type: 'regular',
@@ -63,6 +65,7 @@ export function AddSeatDialog({ onSeatAdded }: AddSeatDialogProps) {
         setStartRange(1);
         setEndRange(10);
         setIsAC(false);
+        setGenderCategory('any');
         onSeatAdded?.();
       } else {
         const error = await response.json();
@@ -128,6 +131,20 @@ export function AddSeatDialog({ onSeatAdded }: AddSeatDialogProps) {
                 checked={isAC}
                 onCheckedChange={setIsAC}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Category (Boys / Girls)</Label>
+              <Select value={genderCategory} onValueChange={setGenderCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any / Unisex</SelectItem>
+                  <SelectItem value="boys">Boys Only</SelectItem>
+                  <SelectItem value="girls">Girls Only</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-3">

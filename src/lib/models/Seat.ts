@@ -10,14 +10,19 @@ const SeatSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  currentStudent: {
+  currentStudents: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'LibraryMember', // Updated to match fresh model name
-  },
+    ref: 'LibraryMember', 
+  }],
   type: {
     type: String,
     enum: ['regular', 'premium', 'vip'],
     default: 'regular',
+  },
+  genderCategory: {
+    type: String,
+    enum: ['any', 'boys', 'girls'],
+    default: 'any',
   },
   isAC: {
     type: Boolean,
@@ -56,4 +61,9 @@ const SeatSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-export default mongoose.models.Seat || mongoose.model('Seat', SeatSchema);
+// Force reload model in dev to catch schema changes
+if (mongoose.models.Seat) {
+  delete mongoose.models.Seat;
+}
+
+export default mongoose.model('Seat', SeatSchema);

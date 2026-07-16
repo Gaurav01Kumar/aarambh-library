@@ -143,6 +143,69 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Attendance & Wi-Fi Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Attendance & Wi-Fi Settings
+          </CardTitle>
+          <CardDescription>Configure Wi-Fi verification and get the common QR code for student attendance</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-1 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="allowedWifiIps">Allowed Wi-Fi IP Addresses (Comma separated)</Label>
+                <Input id="allowedWifiIps" defaultValue="127.0.0.1, ::1" placeholder="e.g. 192.168.1.1, 10.0.0.1" />
+                <p className="text-xs text-slate-500">Students must be connected to a network with one of these public/gateway IPs to mark attendance.</p>
+              </div>
+              <Separator />
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="latitude">Library Latitude</Label>
+                  <Input id="latitude" type="number" step="any" defaultValue="28.6139" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="longitude">Library Longitude</Label>
+                  <Input id="longitude" type="number" step="any" defaultValue="77.2090" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="radius">Allowed Radius (meters)</Label>
+                  <Input id="radius" type="number" defaultValue="50" />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">Students must be physically within this radius to mark attendance via GPS.</p>
+            </div>
+            
+            <div className="w-full md:w-64 flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+              <h3 className="font-semibold mb-2 text-center">Common Attendance QR</h3>
+              <p className="text-xs text-slate-500 text-center mb-4">Print and place this at the entrance.</p>
+              <div className="bg-white p-2 rounded-lg shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin + '/attendance' : 'https://library.com/attendance')}`}
+                  alt="Attendance QR Code"
+                  width={150}
+                  height={150}
+                  className="rounded-md"
+                />
+              </div>
+              <Button variant="outline" className="mt-4 w-full" onClick={() => window.open('/attendance', '_blank')}>
+                Open Page
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex justify-end pt-4">
+            <Button>
+              <Save className="h-4 w-4 mr-2" />
+              Save Changes
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Security Settings */}
       <Card>
         <CardHeader>
