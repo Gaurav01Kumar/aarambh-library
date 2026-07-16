@@ -187,6 +187,27 @@ export default function SeatsPage() {
     }
   };
 
+  const isPaymentPending = (student: any) => {
+    if (student.feeStatus !== 'paid') return true;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (student.feeDueDate) {
+      const dueDate = new Date(student.feeDueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      if (dueDate < today) return true;
+    }
+    
+    if (student.subscriptionExpiry) {
+      const expiry = new Date(student.subscriptionExpiry);
+      expiry.setHours(0, 0, 0, 0);
+      if (expiry < today) return true;
+    }
+    
+    return false;
+  };
+
   // Derived state
   const { floors, sections } = useMemo(() => {
     const f = Array.from(new Set(seats.map(s => s.floor || 'Main')));
@@ -203,8 +224,8 @@ export default function SeatsPage() {
       
       const matchesStatus = 
         statusFilter === 'all' ? true :
-        statusFilter === 'paid' ? students.every(s => s.feeStatus === 'paid') && students.length > 0 :
-        statusFilter === 'unpaid' ? students.some(s => s.feeStatus === 'unpaid' || s.feeStatus === 'partial') :
+        statusFilter === 'paid' ? students.every(s => !isPaymentPending(s)) && students.length > 0 :
+        statusFilter === 'unpaid' ? students.some(s => isPaymentPending(s)) :
         statusFilter === 'available' ? (!seat.isOccupied && seat.isAvailable) :
         statusFilter === 'maintenance' ? !seat.isAvailable : true;
 
@@ -223,7 +244,7 @@ export default function SeatsPage() {
     // Flat map all assigned students
     const allStudents = seats.flatMap(s => s.currentStudents || []);
     
-    const pendingPayments = allStudents.filter(s => s.feeStatus !== 'paid').length;
+    const pendingPayments = allStudents.filter(s => isPaymentPending(s)).length;
     const activeMemberships = allStudents.filter(s => s.isActive).length;
     const expiredMemberships = allStudents.filter(s => new Date(s.subscriptionExpiry) < new Date()).length;
     
@@ -235,7 +256,7 @@ export default function SeatsPage() {
     
     if (seat.isOccupied && seat.currentStudents && seat.currentStudents.length > 0) {
       if (viewMode === 'payment') {
-        const hasUnpaid = seat.currentStudents.some(s => s.feeStatus !== 'paid');
+        const hasUnpaid = seat.currentStudents.some(s => isPaymentPending(s));
         if (!hasUnpaid) {
           return 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300';
         } else {
@@ -488,8 +509,8 @@ export default function SeatsPage() {
                                         <div className="grid grid-cols-2 gap-1 mt-2 text-xs">
                                           <p>
                                             <span className="text-slate-400">Fee Status:</span><br/>
-                                            <span className={student.feeStatus === 'paid' ? 'text-emerald-400 font-medium' : 'text-rose-500 font-medium'}>
-                                              {student.feeStatus.toUpperCase()}
+                                            <span className={!isPaymentPending(student) ? 'text-emerald-400 font-medium' : 'text-rose-500 font-medium'}>
+                                              {isPaymentPending(student) ? (student.feeStatus !== 'paid' ? student.feeStatus.toUpperCase() : 'OVERDUE') : 'PAID'}
                                             </span>
                                           </p>
                                           <p>
