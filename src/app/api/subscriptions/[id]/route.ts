@@ -4,12 +4,14 @@ import Subscription from '@/lib/models/Subscription';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     await connectDB();
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
 
-    const subscription = await Subscription.findById(params.id);
+    const subscription = await Subscription.findById(id);
 
     if (!subscription) {
       return NextResponse.json(
@@ -33,15 +35,17 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     await connectDB();
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
 
     const body = await request.json();
 
     const subscription = await Subscription.findByIdAndUpdate(
-      params.id,
+      id,
       body,
       { new: true, runValidators: true }
     );
@@ -71,12 +75,14 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     await connectDB();
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
 
-    const subscription = await Subscription.findByIdAndDelete(params.id);
+    const subscription = await Subscription.findByIdAndDelete(id);
 
     if (!subscription) {
       return NextResponse.json(

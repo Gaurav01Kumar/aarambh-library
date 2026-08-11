@@ -27,25 +27,45 @@ export function EditSubscriptionDialog({ subscription, onSubscriptionUpdated }: 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    name: subscription.name || '',
-    totalHours: subscription.totalHours || 0,
-    startTime: subscription.startTime || '08:00',
-    endTime: subscription.endTime || '20:00',
-    regularPrice: subscription.regularPrice || 0,
-    salePrice: subscription.salePrice || 0,
-    price: subscription.price || 0,
-    billingCycle: subscription.billingCycle || 'monthly',
-    allowDiscount: subscription.allowDiscount || false,
-    discountRange: subscription.discountRange || '',
-    planType: subscription.planType || 'basic',
-    isActive: subscription.isActive !== false,
+    name: subscription?.name || '',
+    totalHours: subscription?.totalHours || 0,
+    startTime: subscription?.startTime || '08:00',
+    endTime: subscription?.endTime || '20:00',
+    regularPrice: subscription?.regularPrice || 0,
+    salePrice: subscription?.salePrice || 0,
+    price: subscription?.price || 0,
+    billingCycle: subscription?.billingCycle || 'monthly',
+    allowDiscount: subscription?.allowDiscount || false,
+    discountRange: subscription?.discountRange || '',
+    planType: subscription?.planType || 'basic',
+    isActive: subscription?.isActive !== false,
   });
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (isOpen && subscription) {
+      setFormData({
+        name: subscription.name || '',
+        totalHours: subscription.totalHours || 0,
+        startTime: subscription.startTime || '08:00',
+        endTime: subscription.endTime || '20:00',
+        regularPrice: subscription.regularPrice || 0,
+        salePrice: subscription.salePrice || 0,
+        price: subscription.price || subscription.regularPrice || 0,
+        billingCycle: subscription.billingCycle || 'monthly',
+        allowDiscount: subscription.allowDiscount || false,
+        discountRange: subscription.discountRange || '',
+        planType: subscription.planType || 'basic',
+        isActive: subscription.isActive !== false,
+      });
+      setError('');
+    }
+  };
 
   const validateForm = () => {
     if (!formData.name.trim()) return 'Plan name is required';
     if (formData.totalHours <= 0) return 'Total hours must be greater than 0';
     if (!formData.startTime || !formData.endTime) return 'Start and End time are required';
-    if (formData.startTime >= formData.endTime) return 'End time must be after start time';
     if (formData.regularPrice <= 0) return 'Regular price must be greater than 0';
     return null;
   };
@@ -90,10 +110,10 @@ export function EditSubscriptionDialog({ subscription, onSubscriptionUpdated }: 
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
-          <Edit className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="hover:bg-slate-100 dark:hover:bg-slate-800">
+          <Edit className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

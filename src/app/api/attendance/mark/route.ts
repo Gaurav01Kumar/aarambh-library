@@ -131,7 +131,15 @@ export async function POST(request: NextRequest) {
     if (org && org.settings?.allowedWifiIps && org.settings.allowedWifiIps.length > 0) {
       const allowedIps: string[] = org.settings.allowedWifiIps.flatMap((ipList: string) => ipList.split(',').map((ip: string) => ip.trim()));
       
-      if (!allowedIps.includes(clientIp) && !allowedIps.includes('0.0.0.0')) {
+      const isAllowed = 
+        allowedIps.includes(clientIp) || 
+        allowedIps.includes('0.0.0.0') || 
+        allowedIps.includes('*') || 
+        clientIp === '127.0.0.1' || 
+        clientIp === '::1' || 
+        clientIp === 'localhost';
+
+      if (!isAllowed) {
         return logFailure(student._id, 'Security Alert: You are not connected to the authorized Library Wi-Fi.', 403);
       }
     }
@@ -178,6 +186,24 @@ export async function POST(request: NextRequest) {
       checkIn: new Date(),
     });
     await student.save();
+
+    // Trigger Admin Notification Email
+    try {
+      const { sendAdminNotification } = await import('@/lib/email');
+      sendAdminNotification({
+        eventType: 'attendanceMark',
+        subject: `Attendance Checked In: ${student.name} (Seat ${seatNumber})`,
+        title: `📍 Student Attendance Check-In`,
+        detailsHtml: `
+          <p><strong>Student Name:</strong> ${student.name}</p>
+          <p><strong>Seat Assigned:</strong> Seat ${seatNumber}</p>
+          <p><strong>Check-In Time:</strong> ${new Date().toLocaleTimeString('en-IN')}</p>
+          <p><strong>Fee Status:</strong> <span style="font-weight:bold; color:${student.feeStatus === 'paid' ? '#16a34a' : '#dc2626'}">${student.feeStatus.toUpperCase()}</span></p>
+        `,
+      }).catch(err => console.error('Admin notification error:', err));
+    } catch (err) {
+      console.error('Failed to dispatch notification:', err);
+    }
 
     let warningMessage = undefined;
     if (student.feeStatus === 'unpaid' || student.feeStatus === 'partial') {

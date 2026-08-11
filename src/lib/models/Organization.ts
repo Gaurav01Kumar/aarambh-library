@@ -59,6 +59,15 @@ const OrganizationSchema = new mongoose.Schema({
     allowedWifiIps: [{
       type: String,
     }],
+    notificationEmails: [{
+      type: String,
+    }],
+    notificationPreferences: {
+      studentRegistration: { type: Boolean, default: true },
+      attendanceMark: { type: Boolean, default: true },
+      paymentReceived: { type: Boolean, default: true },
+      feeReminders: { type: Boolean, default: true },
+    },
     location: {
       latitude: { type: Number, default: 0 },
       longitude: { type: Number, default: 0 },

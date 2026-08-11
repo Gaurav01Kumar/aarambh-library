@@ -237,7 +237,9 @@ export default function SeatsPage() {
       const matchesSection = sectionFilter === 'all' || (seat.section || 'General') === sectionFilter;
 
       return matchesSearch && matchesStatus && matchesSection;
-    });
+    }).sort((a, b) => 
+      a.seatNumber.localeCompare(b.seatNumber, undefined, { numeric: true, sensitivity: 'base' })
+    );
   }, [seats, searchQuery, statusFilter, sectionFilter]);
 
   // Statistics
@@ -256,6 +258,15 @@ export default function SeatsPage() {
     return { total, available, occupied, pendingPayments, activeMemberships, expiredMemberships };
   }, [seats]);
 
+  const isStudentPresentToday = (student: Student) => {
+    if (!student || !student.attendance || student.attendance.length === 0) return false;
+    const todayStr = new Date().toDateString();
+    return student.attendance.some((record: any) => {
+      const dateVal = record.date || record.checkIn;
+      return dateVal ? new Date(dateVal).toDateString() === todayStr : false;
+    });
+  };
+
   const getSeatColor = (seat: Seat) => {
     if (!seat.isAvailable) return 'bg-slate-200 border-slate-300 text-slate-400 dark:bg-slate-800 dark:border-slate-700'; // Maintenance
     
@@ -269,16 +280,7 @@ export default function SeatsPage() {
         }
       } else {
         // Attendance Mode
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        const hasAttendedToday = seat.currentStudents.some(student => 
-          student.attendance?.some((record: any) => {
-            const recordDate = new Date(record.date);
-            recordDate.setHours(0, 0, 0, 0);
-            return recordDate.getTime() === today.getTime();
-          })
-        );
+        const hasAttendedToday = seat.currentStudents.some(student => isStudentPresentToday(student));
         
         if (hasAttendedToday) {
           return 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300';
@@ -298,15 +300,7 @@ export default function SeatsPage() {
         const hasUnpaid = seat.currentStudents.some(s => s.feeStatus !== 'paid');
         return !hasUnpaid ? 'Paid' : 'Unpaid/Partial';
       } else {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const hasAttendedToday = seat.currentStudents.some(student => 
-          student.attendance?.some((record: any) => {
-            const recordDate = new Date(record.date);
-            recordDate.setHours(0, 0, 0, 0);
-            return recordDate.getTime() === today.getTime();
-          })
-        );
+        const hasAttendedToday = seat.currentStudents.some(student => isStudentPresentToday(student));
         return hasAttendedToday ? 'Present Today' : 'Absent Today';
       }
     }
@@ -519,14 +513,22 @@ export default function SeatsPage() {
                                             </span>
                                           </p>
                                           <p>
+                                            <span className="text-slate-400">Attendance:</span><br/>
+                                            <span className={isStudentPresentToday(student) ? 'text-emerald-400 font-medium' : 'text-rose-400 font-medium'}>
+                                              {isStudentPresentToday(student) ? 'PRESENT' : 'ABSENT'}
+                                            </span>
+                                          </p>
+                                          <p>
                                             <span className="text-slate-400">Shift:</span><br/>
                                             <span className="font-medium whitespace-nowrap text-slate-200">
                                               {student.startTime ? formatTime(student.startTime).replace(' ', '') : 'N/A'} - {student.endTime ? formatTime(student.endTime).replace(' ', '') : 'N/A'}
                                             </span>
                                           </p>
                                           <p>
-                                            <span className="text-slate-400">Fee Due:</span><br/>
-                                            <span className="font-medium text-slate-200">{formatDate(student.feeDueDate)}</span>
+                                            <span className="text-slate-400">Fee Status:</span><br/>
+                                            <span className={!isPaymentPending(student) ? 'text-emerald-400 font-medium' : 'text-rose-500 font-medium'}>
+                                              {isPaymentPending(student) ? (student.feeStatus !== 'paid' ? student.feeStatus.toUpperCase() : 'OVERDUE') : 'PAID'}
+                                            </span>
                                           </p>
                                           <p>
                                             <span className="text-slate-400">Expiry:</span><br/>

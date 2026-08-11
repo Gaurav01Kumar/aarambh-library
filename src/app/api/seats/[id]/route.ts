@@ -5,12 +5,14 @@ import Student from '@/lib/models/Student';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     await connectDB();
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
     const body = await request.json();
-    const seat = await Seat.findByIdAndUpdate(params.id, body, { new: true });
+    const seat = await Seat.findByIdAndUpdate(id, body, { new: true });
     
     if (!seat) {
       return NextResponse.json({ success: false, error: 'Seat not found' }, { status: 404 });
@@ -25,11 +27,13 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     await connectDB();
-    const seat = await Seat.findByIdAndDelete(params.id);
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
+    const seat = await Seat.findByIdAndDelete(id);
     
     if (!seat) {
       return NextResponse.json({ success: false, error: 'Seat not found' }, { status: 404 });

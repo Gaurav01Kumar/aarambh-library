@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Seat from '@/lib/models/Seat';
 import Student from '@/lib/models/Student'; // Note: This will use LibraryMember under the hood
+import Attendance from '@/lib/models/Attendance';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,6 +23,24 @@ export async function GET(request: NextRequest) {
     // Fetch all active students to dynamically assign them to seats
     // (fixes inconsistency where Student has seatNumber but Seat document is not updated)
     const activeStudents = await Student.find({ isActive: true });
+    
+    // Fetch today's successful attendance logs
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    let todayAttendanceLogs: any[] = [];
+    try {
+      todayAttendanceLogs = await Attendance.find({
+        date: { $gte: startOfToday, $lte: endOfToday },
+        status: 'success'
+      });
+    } catch (e) {
+      console.error('Error fetching today attendance logs:', e);
+    }
+    const attendedStudentIds = new Set(todayAttendanceLogs.map(log => log.student.toString()));
+
     const studentBySeat = new Map();
     activeStudents.forEach(student => {
       if (student.seatNumber) {
@@ -38,25 +57,51 @@ export async function GET(request: NextRequest) {
       
       if (studentsForSeat.length > 0) {
         seatObj.isOccupied = true; // Overall occupied status if anyone sits here
-        seatObj.currentStudents = studentsForSeat.map((student: any) => ({
-          _id: student._id,
-          name: student.name,
-          email: student.email,
-          phone: student.phone,
-          feeStatus: student.feeStatus,
-          feeDueDate: student.feeDueDate,
-          isActive: student.isActive,
-          subscriptionPlan: student.subscriptionPlan,
-          subscriptionExpiry: student.subscriptionExpiry,
-          startTime: student.startTime,
-          endTime: student.endTime,
-        }));
+        seatObj.currentStudents = studentsForSeat.map((student: any) => {
+          const attendanceList = student.attendance ? [...student.attendance] : [];
+          
+          // Check if student has attendance in Attendance collection for today
+          const hasAttendedTodayLog = attendedStudentIds.has(student._id.toString());
+          const hasAttendedTodayInDoc = attendanceList.some((a: any) => {
+            const d = new Date(a.date || a.checkIn);
+            return d >= startOfToday && d <= endOfToday;
+          });
+
+          if (hasAttendedTodayLog && !hasAttendedTodayInDoc) {
+            const log = todayAttendanceLogs.find(l => l.student.toString() === student._id.toString());
+            attendanceList.push({
+              date: log?.date || new Date(),
+              checkIn: log?.checkIn || new Date(),
+              checkOut: log?.checkOut,
+            });
+          }
+
+          return {
+            _id: student._id,
+            name: student.name,
+            email: student.email,
+            phone: student.phone,
+            feeStatus: student.feeStatus,
+            feeDueDate: student.feeDueDate,
+            isActive: student.isActive,
+            subscriptionPlan: student.subscriptionPlan,
+            subscriptionExpiry: student.subscriptionExpiry,
+            startTime: student.startTime,
+            endTime: student.endTime,
+            attendance: attendanceList,
+          };
+        });
       } else {
         seatObj.currentStudents = [];
         seatObj.isOccupied = false;
       }
       return seatObj;
     });
+
+    // Natural numeric sorting (1, 2, 3, ... 10, 11, S-1, S-2, S-10, etc.)
+    processedSeats.sort((a, b) => 
+      a.seatNumber.localeCompare(b.seatNumber, undefined, { numeric: true, sensitivity: 'base' })
+    );
 
     // If timing is provided, calculate occupancy based on overlapping student shifts
     if (startTime && endTime) {

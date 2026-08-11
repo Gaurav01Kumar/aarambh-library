@@ -19,8 +19,17 @@ export async function GET(request: NextRequest) {
 
     const allowedIps: string[] = org.settings.allowedWifiIps.flatMap((ipList: string) => ipList.split(',').map(ip => ip.trim()));
 
-    // Check if client IP is in the allowed list
-    if (allowedIps.includes(clientIp) || allowedIps.includes('0.0.0.0')) {
+    // Check if client IP is in the allowed list or if wildcard/local
+    if (
+      allowedIps.includes(clientIp) || 
+      allowedIps.includes('0.0.0.0') || 
+      allowedIps.includes('*') || 
+      allowedIps.includes('127.0.0.1') || 
+      allowedIps.includes('::1') ||
+      clientIp === '127.0.0.1' ||
+      clientIp === '::1' ||
+      clientIp === 'localhost'
+    ) {
       return NextResponse.json({ success: true, ip: clientIp });
     }
 

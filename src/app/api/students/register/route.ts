@@ -46,6 +46,26 @@ export async function POST(request: NextRequest) {
       joinDate: new Date(),
     });
 
+    // Trigger Admin Notification Email
+    try {
+      const { sendAdminNotification } = await import('@/lib/email');
+      sendAdminNotification({
+        eventType: 'studentRegistration',
+        subject: `New Student Registered: ${student.name}`,
+        title: `🎉 New Student Self-Registration`,
+        detailsHtml: `
+          <p><strong>Name:</strong> ${student.name}</p>
+          <p><strong>Email:</strong> ${student.email}</p>
+          <p><strong>Phone:</strong> +91 ${student.phone}</p>
+          <p><strong>ID Proof:</strong> ${student.idProof} (${student.idProofNumber})</p>
+          <p><strong>Requested Shift:</strong> ${student.startTime || 'Default'} - ${student.endTime || 'Default'}</p>
+          <p><strong>QR Pass Code:</strong> <code>${student.qrCode}</code></p>
+        `,
+      }).catch(err => console.error('Admin notification error:', err));
+    } catch (err) {
+      console.error('Failed to dispatch notification:', err);
+    }
+
     return NextResponse.json(
       {
         success: true,
