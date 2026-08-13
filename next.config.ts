@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   allowedDevOrigins: [
+    "aarambhlibrary.com",
+    "www.aarambhlibrary.com",
     "www.library.yaadgarpal.com",
     "library.yaadgarpal.com",
     "localhost",
