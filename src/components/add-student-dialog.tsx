@@ -36,12 +36,18 @@ interface Shift {
   label?: string;
 }
 
+interface SlotPrice {
+  slotCount: number;
+  price: number;
+}
+
 interface Subscription {
   _id: string;
   name: string;
   salePrice: number;
   regularPrice: number;
   shifts: Shift[];
+  slotPrices?: SlotPrice[];
 }
 
 function formatTime(timeStr: string) {
@@ -69,7 +75,7 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
   
   const [selectedPlan, setSelectedPlan] = useState<Subscription | null>(null);
-  const [selectedShiftIndex, setSelectedShiftIndex] = useState<number>(-1);
+  const [selectedShiftIndices, setSelectedShiftIndices] = useState<number[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -83,6 +89,7 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
     subscriptionPlan: '',
     startTime: '',
     endTime: '',
+    selectedShifts: [] as Shift[],
     profileImage: '',
   });
 
@@ -148,6 +155,10 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
       setError('Please select a subscription plan');
       return;
     }
+    if (selectedShiftIndices.length === 0) {
+      setError('Please select at least one shift/slot');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -189,40 +200,81 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
       subscriptionPlan: '',
       startTime: '',
       endTime: '',
+      selectedShifts: [],
       profileImage: '',
     });
     setProfilePreview(null);
     setSelectedPlan(null);
-    setSelectedShiftIndex(-1);
+    setSelectedShiftIndices([]);
   };
 
   const handlePlanChange = (subId: string) => {
     const sub = subscriptions.find(s => s._id === subId);
     if (sub) {
       setSelectedPlan(sub);
-      setSelectedShiftIndex(-1);
+      setSelectedShiftIndices([]);
       setFormData(prev => ({
         ...prev,
         subscriptionPlan: sub.name,
-        feeAmount: sub.salePrice || sub.regularPrice,
+        feeAmount: 0,
         startTime: '',
         endTime: '',
+        selectedShifts: [],
         seatNumber: '', // Reset seat if plan changes
       }));
     }
   };
 
-  const handleShiftSelect = (index: number) => {
-    if (selectedPlan && selectedPlan.shifts[index]) {
-      const shift = selectedPlan.shifts[index];
-      setSelectedShiftIndex(index);
+  const toggleShiftSelect = (index: number) => {
+    if (!selectedPlan || !selectedPlan.shifts[index]) return;
+
+    let newIndices: number[];
+    if (selectedShiftIndices.includes(index)) {
+      newIndices = selectedShiftIndices.filter(i => i !== index);
+    } else {
+      newIndices = [...selectedShiftIndices, index].sort((a, b) => a - b);
+    }
+
+    setSelectedShiftIndices(newIndices);
+
+    if (newIndices.length === 0) {
       setFormData(prev => ({
         ...prev,
-        startTime: shift.startTime,
-        endTime: shift.endTime,
-        seatNumber: '', // Clear seat selection as it might be occupied in new shift
+        feeAmount: 0,
+        startTime: '',
+        endTime: '',
+        selectedShifts: [],
+        seatNumber: '',
       }));
+      return;
     }
+
+    const slotCount = newIndices.length;
+    let calculatedFee = 0;
+
+    if (selectedPlan.slotPrices && selectedPlan.slotPrices.length > 0) {
+      const tier = selectedPlan.slotPrices.find(sp => sp.slotCount === slotCount);
+      if (tier) {
+        calculatedFee = tier.price;
+      } else {
+        calculatedFee = slotCount * (selectedPlan.salePrice || selectedPlan.regularPrice);
+      }
+    } else {
+      calculatedFee = slotCount * (selectedPlan.salePrice || selectedPlan.regularPrice);
+    }
+
+    const selectedShiftsList = newIndices.map(i => selectedPlan.shifts[i]);
+    const startTimes = selectedShiftsList.map(s => s.startTime).sort();
+    const endTimes = selectedShiftsList.map(s => s.endTime).sort();
+
+    setFormData(prev => ({
+      ...prev,
+      feeAmount: calculatedFee,
+      startTime: startTimes[0],
+      endTime: endTimes[endTimes.length - 1],
+      selectedShifts: selectedShiftsList,
+      seatNumber: '', // Clear seat selection as timing changed
+    }));
   };
 
   const filteredSeats = seats.filter(s => 
@@ -285,35 +337,49 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
 
                 {selectedPlan && (
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <Label className="text-xs font-bold uppercase text-slate-500">2. Choose Available Shift *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold uppercase text-slate-500">2. Choose Shift(s) *</Label>
+                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">Select 1 or more slots</span>
+                    </div>
                     <div className="grid gap-2">
-                      {selectedPlan.shifts?.map((shift, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleShiftSelect(idx)}
-                          className={`
-                            flex flex-col items-start p-2 rounded-lg border-2 text-left transition-all
-                            ${selectedShiftIndex === idx 
-                              ? 'border-primary bg-primary/5 ring-1 ring-primary' 
-                              : 'border-slate-100 hover:border-slate-200 bg-white dark:bg-slate-900'}
-                          `}
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase">{shift.label || `Shift ${idx + 1}`}</span>
-                            {selectedShiftIndex === idx && <Check className="h-3 w-3 text-primary" />}
-                          </div>
-                          <span className="text-xs font-bold">{formatTime(shift.startTime)} - {formatTime(shift.endTime)}</span>
-                        </button>
-                      ))}
+                      {selectedPlan.shifts?.map((shift, idx) => {
+                        const isSelected = selectedShiftIndices.includes(idx);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => toggleShiftSelect(idx)}
+                            className={`
+                              flex flex-col items-start p-2.5 rounded-lg border-2 text-left transition-all cursor-pointer
+                              ${isSelected 
+                                ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                                : 'border-slate-100 hover:border-slate-200 bg-white dark:bg-slate-900'}
+                            `}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">{shift.label || `Shift ${idx + 1}`}</span>
+                              <div className={`h-4 w-4 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary text-white' : 'border-slate-300 bg-white'}`}>
+                                {isSelected && <Check className="h-3 w-3" />}
+                              </div>
+                            </div>
+                            <span className="text-xs font-bold mt-0.5">{formatTime(shift.startTime)} - {formatTime(shift.endTime)}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
+                <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-500">Total Fees:</span>
-                    <span className="font-bold text-lg">₹{formData.feeAmount}</span>
+                    <div>
+                      <span className="text-slate-600 dark:text-slate-400 font-medium text-xs block">Selected Slots:</span>
+                      <span className="font-bold text-xs text-indigo-600 dark:text-indigo-400">{selectedShiftIndices.length} Slot(s)</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-500 text-xs block">Total Fee:</span>
+                      <span className="font-bold text-xl text-primary">₹{formData.feeAmount}</span>
+                    </div>
                   </div>
                 </div>
               </div>

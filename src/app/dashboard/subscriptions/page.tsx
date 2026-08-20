@@ -14,12 +14,25 @@ import {
 import { AddSubscriptionDialog } from '@/components/add-subscription-dialog';
 import { EditSubscriptionDialog } from '@/components/edit-subscription-dialog';
 
+interface Shift {
+  startTime: string;
+  endTime: string;
+  label?: string;
+}
+
+interface SlotPrice {
+  slotCount: number;
+  price: number;
+}
+
 interface Subscription {
   _id: string;
   name: string;
   totalHours: number;
   startTime: string;
   endTime: string;
+  shifts?: Shift[];
+  slotPrices?: SlotPrice[];
   regularPrice: number;
   salePrice: number;
   billingCycle: 'monthly' | 'quarterly' | 'half-yearly' | 'yearly';
@@ -153,14 +166,14 @@ export default function SubscriptionsPage() {
                   </TableCell>
                   <TableCell>{sub.totalHours || 0} hrs</TableCell>
                   <TableCell>
-                    <div className="flex flex-col">
-                      <span className={sub.salePrice ? "text-xs line-through text-slate-400" : "font-medium"}>
-                        ₹{(sub.regularPrice || 0).toLocaleString()}
+                    <div className="flex flex-col gap-0.5">
+                      <span className={sub.salePrice ? "text-xs line-through text-slate-400" : "font-semibold"}>
+                        1 Slot: ₹{(sub.regularPrice || 0).toLocaleString()}
                       </span>
-                      {sub.salePrice > 0 && (
-                        <span className="font-bold text-green-600">
-                          ₹{(sub.salePrice || 0).toLocaleString()}
-                        </span>
+                      {sub.slotPrices && sub.slotPrices.length > 1 && (
+                        <div className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
+                          {sub.slotPrices.map(sp => `${sp.slotCount} Slot${sp.slotCount > 1 ? 's' : ''}: ₹${sp.price}`).join(' | ')}
+                        </div>
                       )}
                     </div>
                   </TableCell>

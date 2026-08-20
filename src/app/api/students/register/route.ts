@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { name, email, phone, idProof, idProofNumber, startTime, endTime } = body;
+    const { name, email, phone, idProof, idProofNumber, startTime, endTime, subscriptionPlan, feeAmount, selectedShifts } = body;
 
     // Basic validation
     if (!name || !email || !phone || !idProof || !idProofNumber) {
@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
       qrCode,
       startTime,
       endTime,
+      subscriptionPlan: subscriptionPlan || 'basic',
+      feeAmount: feeAmount || 0,
+      selectedShifts: selectedShifts || [],
       isActive: true,
       feeStatus: 'unpaid',
       joinDate: new Date(),

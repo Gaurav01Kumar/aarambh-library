@@ -16,6 +16,10 @@ const SubscriptionSchema = new mongoose.Schema({
     required: true,
   },
   shifts: [ShiftSchema],
+  slotPrices: [{
+    slotCount: { type: Number, required: true },
+    price: { type: Number, required: true },
+  }],
   startTime: { type: String },
   endTime: { type: String },
   regularPrice: {

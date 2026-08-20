@@ -40,8 +40,12 @@ export function AddSubscriptionDialog({ onSubscriptionAdded }: AddSubscriptionDi
     isActive: true,
   });
 
+  const [slotPrices, setSlotPrices] = useState<{ [count: number]: number }>({ 1: 0 });
+
   const addShift = () => {
-    setShifts([...shifts, { startTime: '08:00', endTime: '14:00', label: 'Shift ' + (shifts.length + 1) }]);
+    const nextCount = shifts.length + 1;
+    setShifts([...shifts, { startTime: '08:00', endTime: '14:00', label: 'Shift ' + nextCount }]);
+    setSlotPrices(prev => ({ ...prev, [nextCount]: prev[nextCount] || (formData.regularPrice * nextCount) }));
   };
 
   const removeShift = (index: number) => {
@@ -54,6 +58,10 @@ export function AddSubscriptionDialog({ onSubscriptionAdded }: AddSubscriptionDi
     const newShifts = [...shifts];
     (newShifts[index] as any)[field] = value;
     setShifts(newShifts);
+  };
+
+  const updateSlotPrice = (count: number, price: number) => {
+    setSlotPrices(prev => ({ ...prev, [count]: price }));
   };
 
   const validateForm = () => {
@@ -80,9 +88,19 @@ export function AddSubscriptionDialog({ onSubscriptionAdded }: AddSubscriptionDi
     setLoading(true);
     setError('');
 
+    // Format slotPrices as array
+    const formattedSlotPrices = Array.from({ length: shifts.length }, (_, i) => {
+      const count = i + 1;
+      return {
+        slotCount: count,
+        price: slotPrices[count] !== undefined ? slotPrices[count] : (formData.regularPrice * count),
+      };
+    });
+
     const submissionData = {
       ...formData,
       shifts,
+      slotPrices: formattedSlotPrices,
       price: formData.regularPrice,
       // For compatibility
       startTime: shifts[0]?.startTime,
@@ -126,6 +144,7 @@ export function AddSubscriptionDialog({ onSubscriptionAdded }: AddSubscriptionDi
       isActive: true,
     });
     setShifts([{ startTime: '08:00', endTime: '20:00', label: 'Full Day' }]);
+    setSlotPrices({ 1: 0 });
     setError('');
   };
 
@@ -141,7 +160,7 @@ export function AddSubscriptionDialog({ onSubscriptionAdded }: AddSubscriptionDi
         <DialogHeader>
           <DialogTitle>Add New Subscription Plan</DialogTitle>
           <DialogDescription>
-            Configure membership name, pricing, and available shifts
+            Configure membership name, pricing, shifts, and multi-slot rules
           </DialogDescription>
         </DialogHeader>
 
@@ -237,13 +256,17 @@ export function AddSubscriptionDialog({ onSubscriptionAdded }: AddSubscriptionDi
           {/* Pricing Section */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="regularPrice">Regular Price (₹) *</Label>
+              <Label htmlFor="regularPrice">Base (1 Slot) Price (₹) *</Label>
               <Input
                 id="regularPrice"
                 type="number"
                 min="1"
                 value={formData.regularPrice || ''}
-                onChange={(e) => setFormData({ ...formData, regularPrice: parseInt(e.target.value) || 0 })}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 0;
+                  setFormData({ ...formData, regularPrice: val });
+                  setSlotPrices(prev => ({ ...prev, 1: val }));
+                }}
                 required
               />
             </div>
@@ -275,6 +298,35 @@ export function AddSubscriptionDialog({ onSubscriptionAdded }: AddSubscriptionDi
             </div>
           </div>
 
+          {/* Multi-Slot Tier Pricing Section */}
+          <div className="space-y-3 border rounded-xl p-4 bg-indigo-50/30 dark:bg-indigo-950/20 border-indigo-100 dark:border-indigo-900/40">
+            <Label className="text-sm font-bold text-indigo-950 dark:text-indigo-200 flex items-center justify-between">
+              <span>Multi-Slot Combination Prices</span>
+              <span className="text-[11px] font-normal text-slate-500">Set specific price when student chooses multiple shifts</span>
+            </Label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              {Array.from({ length: shifts.length }, (_, i) => {
+                const count = i + 1;
+                const priceVal = slotPrices[count] !== undefined ? slotPrices[count] : (formData.regularPrice * count);
+                return (
+                  <div key={count} className="p-3 bg-white dark:bg-slate-900 rounded-lg border shadow-xs space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      {count} {count === 1 ? 'Slot' : 'Slots'} Price (₹)
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={priceVal || ''}
+                      onChange={(e) => updateSlotPrice(count, parseInt(e.target.value) || 0)}
+                      placeholder={`e.g. ${count === 1 ? '300' : count === 2 ? '500' : count === 3 ? '700' : '800'}`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Controls */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex items-center space-x-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
@@ -299,7 +351,7 @@ export function AddSubscriptionDialog({ onSubscriptionAdded }: AddSubscriptionDi
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="px-8">
+            <Button type="submit" disabled={loading} className="px-8 font-bold">
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

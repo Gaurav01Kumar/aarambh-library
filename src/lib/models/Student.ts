@@ -65,6 +65,11 @@ const StudentSchema = new mongoose.Schema({
   endTime: {
     type: String, // HH:mm
   },
+  selectedShifts: [{
+    startTime: { type: String },
+    endTime: { type: String },
+    label: { type: String },
+  }],
   preferences: {
     notifications: {
       email: { type: Boolean, default: true },
