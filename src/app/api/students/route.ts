@@ -93,6 +93,42 @@ export async function POST(request: NextRequest) {
       qrCode,
     });
 
+    // Send Welcome Email to Student & Admin Notification
+    try {
+      const { sendStudentWelcomeEmail, sendAdminNotification } = await import('@/lib/email');
+
+      // 1. Welcome Email to Student
+      sendStudentWelcomeEmail({
+        to: student.email,
+        name: student.name,
+        seatNumber: student.seatNumber,
+        startTime: student.startTime,
+        endTime: student.endTime,
+        feeAmount: student.feeAmount,
+        qrCode: student.qrCode,
+      }).catch(err => console.error('Error sending student welcome email:', err));
+
+      // 2. Notification Email to Admin
+      sendAdminNotification({
+        eventType: 'studentRegistration',
+        subject: `New Student Registered: ${student.name}`,
+        title: `🎓 New Student Registration`,
+        detailsHtml: `
+          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <p style="margin: 4px 0;"><strong>Student Name:</strong> ${student.name}</p>
+            <p style="margin: 4px 0;"><strong>Email:</strong> ${student.email}</p>
+            <p style="margin: 4px 0;"><strong>Phone:</strong> +91 ${student.phone}</p>
+            <p style="margin: 4px 0;"><strong>Assigned Seat:</strong> Seat ${student.seatNumber || 'N/A'}</p>
+            <p style="margin: 4px 0;"><strong>Shift Timing:</strong> ${student.startTime || '--'} to ${student.endTime || '--'}</p>
+            <p style="margin: 4px 0;"><strong>Subscription Plan:</strong> ${student.subscriptionPlan || 'N/A'}</p>
+            <p style="margin: 4px 0;"><strong>Monthly Fee Rate:</strong> ₹${student.feeAmount || 0}</p>
+          </div>
+        `,
+      }).catch(err => console.error('Error sending admin student registration notification:', err));
+    } catch (notificationErr) {
+      console.error('Failed to trigger student creation email notifications:', notificationErr);
+    }
+
     return NextResponse.json({
       success: true,
       data: student,

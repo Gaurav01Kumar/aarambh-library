@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { studentId, months, totalPrice, paymentMethod, date } = body;
+    const { studentId, months, totalPrice, paymentMethod, date, utr } = body;
 
     if (!studentId || !months || !totalPrice) {
       return NextResponse.json(
@@ -72,8 +72,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate transaction ID
-    const transactionId = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    // Generate transaction ID & custom UTR
+    const autoTxnId = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    const finalUtr = utr && utr.trim() !== '' ? utr.trim() : autoTxnId;
 
     // Create payment record
     const payment = await Payment.create({
@@ -83,8 +84,9 @@ export async function POST(request: NextRequest) {
       months: parseInt(months),
       totalPrice,
       paymentMethod,
-      date: new Date(date),
-      transactionId,
+      date: paymentDate,
+      transactionId: autoTxnId,
+      utr: finalUtr,
       status: 'completed',
     });
 
@@ -95,9 +97,9 @@ export async function POST(request: NextRequest) {
       type: 'income',
       category: 'Fees',
       paymentMethod,
-      date: new Date(date),
+      date: paymentDate,
       description: `${months} month${parseInt(months) > 1 ? 's' : ''} payment for ${student.name}`,
-      utr: transactionId,
+      utr: finalUtr,
     });
 
     // Update student fee status
@@ -118,7 +120,7 @@ export async function POST(request: NextRequest) {
           <p><strong>Amount Collected:</strong> ₹${totalPrice.toLocaleString()}</p>
           <p><strong>Duration:</strong> ${months} Month(s)</p>
           <p><strong>Method:</strong> ${paymentMethod.toUpperCase()}</p>
-          <p><strong>Txn ID / Ref:</strong> <code>${transactionId}</code></p>
+          <p><strong>Txn ID / Ref:</strong> <code>${finalUtr}</code></p>
         `,
       }).catch(err => console.error('Admin notification error:', err));
     } catch (err) {

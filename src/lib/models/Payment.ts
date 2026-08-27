@@ -33,7 +33,10 @@ const PaymentSchema = new mongoose.Schema({
   },
   transactionId: {
     type: String,
-    unique: true,
+    sparse: true,
+  },
+  utr: {
+    type: String,
   },
   status: {
     type: String,

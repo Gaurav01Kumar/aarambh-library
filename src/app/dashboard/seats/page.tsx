@@ -11,7 +11,8 @@ import {
   UserCheck, 
   AlertCircle, 
   Search,
-  Filter
+  Filter,
+  Edit
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -101,6 +102,7 @@ export default function SeatsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sectionFilter, setSectionFilter] = useState('all');
   const [activeTab, setActiveTab] = useState<string>('');
+  const [editingSeat, setEditingSeat] = useState<Seat | null>(null);
   const [viewMode, setViewMode] = useState<'payment' | 'attendance'>('payment');
 
   useEffect(() => {
@@ -565,7 +567,13 @@ export default function SeatsPage() {
                                   <DropdownMenuLabel>Seat {seat.seatNumber}</DropdownMenuLabel>
                                 </DropdownMenuGroup>
                                 <DropdownMenuSeparator />
-                                <EditSeatDialog seat={seat} onSeatUpdated={fetchSeats} />
+                                <DropdownMenuItem
+                                  onClick={() => setEditingSeat(seat)}
+                                  className="cursor-pointer font-medium text-slate-700 dark:text-slate-200"
+                                >
+                                  <Edit className="h-4 w-4 mr-2 text-indigo-600" />
+                                  Edit Seat Configuration
+                                </DropdownMenuItem>
                                 {seat.isOccupied && seat.currentStudents && (
                                   <>
                                     <DropdownMenuSub>
@@ -634,6 +642,21 @@ export default function SeatsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Seat Dialog outside Radix DropdownMenu */}
+      {editingSeat && (
+        <EditSeatDialog
+          seat={editingSeat}
+          open={!!editingSeat}
+          onOpenChange={(val) => {
+            if (!val) setEditingSeat(null);
+          }}
+          onSeatUpdated={() => {
+            setEditingSeat(null);
+            fetchSeats();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import connectDB from '@/lib/mongodb';
 
 export interface InvoiceEmailPayload {
   to: string;
@@ -248,6 +249,127 @@ export async function sendAdminNotification({
     }
   } catch (error) {
     console.error('Error in sendAdminNotification:', error);
+  }
+}
+
+export async function sendStudentWelcomeEmail({
+  to,
+  name,
+  seatNumber,
+  startTime,
+  endTime,
+  feeAmount,
+  qrCode,
+}: {
+  to: string;
+  name: string;
+  seatNumber?: string;
+  startTime?: string;
+  endTime?: string;
+  feeAmount?: number;
+  qrCode?: string;
+}) {
+  try {
+    const Organization = (await import('@/lib/models/Organization')).default;
+    await connectDB();
+    const org = await Organization.findOne();
+    const orgName = org?.name || 'Aarambh Library';
+
+    const formatTimeHelper = (timeStr?: string) => {
+      if (!timeStr) return '--:--';
+      const [h, m] = timeStr.split(':');
+      if (!h || !m) return timeStr;
+      let hour = parseInt(h);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      hour = hour % 12;
+      hour = hour ? hour : 12;
+      return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
+    };
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+    .header { background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); padding: 30px 20px; text-align: center; color: #ffffff; }
+    .header h1 { margin: 0; font-size: 24px; font-weight: 800; }
+    .header p { margin: 6px 0 0 0; opacity: 0.9; font-size: 14px; }
+    .body { padding: 30px; font-size: 15px; line-height: 1.6; }
+    .card { background: #f8fafc; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #e2e8f0; }
+    .footer { text-align: center; padding: 20px; font-size: 12px; color: #64748b; background: #f1f5f9; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Welcome to ${orgName}! 🎉</h1>
+      <p>Your Membership & Registration is Confirmed</p>
+    </div>
+    <div class="body">
+      <p style="font-size: 16px;">Dear <strong>${name}</strong>,</p>
+      <p>We are delighted to welcome you to <strong>${orgName}</strong>! Your library membership registration has been completed successfully.</p>
+      
+      <div class="card">
+        <h3 style="margin-top: 0; color: #3730a3; font-size: 16px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">Registration Details</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Member Name:</td>
+            <td style="padding: 6px 0; font-weight: 700; text-align: right; color: #0f172a;">${name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Registered Email:</td>
+            <td style="padding: 6px 0; font-weight: 600; text-align: right; color: #4338ca;">${to}</td>
+          </tr>
+          ${seatNumber ? `
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Assigned Seat:</td>
+            <td style="padding: 6px 0; font-weight: 700; text-align: right; color: #16a34a;">Seat ${seatNumber}</td>
+          </tr>
+          ` : ''}
+          ${startTime && endTime ? `
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Shift Timing:</td>
+            <td style="padding: 6px 0; font-weight: 600; text-align: right; color: #0f172a;">${formatTimeHelper(startTime)} - ${formatTimeHelper(endTime)}</td>
+          </tr>
+          ` : ''}
+          ${feeAmount ? `
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Monthly Fee Rate:</td>
+            <td style="padding: 6px 0; font-weight: 700; text-align: right; color: #0f172a;">₹${feeAmount.toLocaleString('en-IN')}</td>
+          </tr>
+          ` : ''}
+          ${qrCode ? `
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Student Access Code:</td>
+            <td style="padding: 6px 0; font-weight: 700; text-align: right; font-family: monospace; color: #4338ca;">${qrCode}</td>
+          </tr>
+          ` : ''}
+        </table>
+      </div>
+
+      <p style="font-size: 14px; color: #475569;">
+        Please make sure to follow library guidelines and keep your seat clean. If you have any questions or require assistance, feel free to contact the library administration desk.
+      </p>
+    </div>
+    <div class="footer">
+      <p>&copy; ${new Date().getFullYear()} ${orgName}. All rights reserved.</p>
+      <p>Automated Registration Email • info@aarambhlibrary.com</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    await sendEmail({
+      to,
+      subject: `Welcome to ${orgName}! Registration Details`,
+      html,
+    });
+  } catch (error) {
+    console.error('Error in sendStudentWelcomeEmail:', error);
   }
 }
 

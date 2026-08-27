@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,23 +18,54 @@ import { Edit, Loader2 } from 'lucide-react';
 
 interface EditSeatDialogProps {
   seat: any;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onSeatUpdated?: () => void;
 }
 
-export function EditSeatDialog({ seat, onSeatUpdated }: EditSeatDialogProps) {
-  const [open, setOpen] = useState(false);
+export function EditSeatDialog({
+  seat,
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange,
+  onSeatUpdated,
+}: EditSeatDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = typeof externalOpen !== 'undefined';
+  const open = isControlled ? externalOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    if (isControlled) {
+      externalOnOpenChange?.(val);
+    } else {
+      setInternalOpen(val);
+    }
+  };
+
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    seatNumber: seat.seatNumber || '',
-    floor: seat.floor || 'Ground Floor',
-    section: seat.section || 'A',
-    isAC: seat.isAC || false,
-    isAvailable: seat.isAvailable !== false,
-    genderCategory: seat.genderCategory || 'any',
+    seatNumber: '',
+    floor: 'Ground Floor',
+    section: 'A',
+    isAC: false,
+    isAvailable: true,
+    genderCategory: 'any',
   });
+
+  useEffect(() => {
+    if (seat) {
+      setFormData({
+        seatNumber: seat.seatNumber || '',
+        floor: seat.floor || 'Ground Floor',
+        section: seat.section || 'A',
+        isAC: seat.isAC || false,
+        isAvailable: seat.isAvailable !== false,
+        genderCategory: seat.genderCategory || 'any',
+      });
+    }
+  }, [seat, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!seat || !seat._id) return;
     setLoading(true);
 
     try {
@@ -61,14 +92,16 @@ export function EditSeatDialog({ seat, onSeatUpdated }: EditSeatDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Edit className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon">
+            <Edit className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Seat {seat.seatNumber}</DialogTitle>
+          <DialogTitle>Edit Seat {seat?.seatNumber}</DialogTitle>
           <DialogDescription>
             Update seat configuration and availability
           </DialogDescription>
