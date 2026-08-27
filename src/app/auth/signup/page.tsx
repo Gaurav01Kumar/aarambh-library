@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
@@ -59,10 +60,9 @@ export default function SignUpPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <BookOpen className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold">Aarambh Library</span>
-          </Link>
+          <div className="flex justify-center mb-4">
+            <BrandLogo href="/" size="lg" />
+          </div>
           <h1 className="text-2xl font-bold">Create an account</h1>
           <p className="text-slate-600 dark:text-slate-400">Start your 14-day free trial</p>
         </div>

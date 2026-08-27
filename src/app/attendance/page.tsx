@@ -20,6 +20,7 @@ import {
   Smartphone,
   RefreshCw
 } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 
 export default function AttendancePage() {
   const [seatNumber, setSeatNumber] = useState('');
@@ -155,8 +156,8 @@ export default function AttendancePage() {
         <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center mb-3">
-            <BookOpen className="h-7 w-7 text-indigo-400" />
+          <div className="flex justify-center mb-3">
+            <BrandLogo size="lg" isDark />
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight text-white">
             Aarambh Library

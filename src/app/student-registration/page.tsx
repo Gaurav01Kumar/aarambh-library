@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BookOpen, Loader2, CheckCircle, ArrowLeft, Check, Clock } from 'lucide-react';
+import { Loader2, CheckCircle, ArrowLeft, Check, Clock } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 
 interface Shift {
   startTime: string;
@@ -203,10 +204,9 @@ export default function StudentRegistrationPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <BookOpen className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold">Aarambh Library</span>
-          </Link>
+          <div className="flex justify-center mb-4">
+            <BrandLogo href="/" size="lg" />
+          </div>
           <h1 className="text-3xl font-bold">Student Registration</h1>
           <p className="text-slate-600 dark:text-slate-400 mt-2">Fill in your details to join our library</p>
         </div>

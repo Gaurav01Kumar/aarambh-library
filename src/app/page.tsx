@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { BrandLogo } from '@/components/brand-logo';
 import { 
   BookOpen, 
   Users, 
@@ -38,19 +39,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-3 group">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-0.5 shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/40 transition-all duration-300">
-                <div className="h-full w-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                  <BookOpen className="h-5 w-5 text-indigo-400 group-hover:scale-110 transition-transform duration-300" />
-                </div>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xl font-bold tracking-tight text-white flex items-center gap-1.5">
-                  Aarambh <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">SaaS</span>
-                </span>
-                <span className="text-[10px] text-slate-400 -mt-1 tracking-wider uppercase">Library Management</span>
-              </div>
-            </Link>
+            <BrandLogo href="/" size="md" subText="SaaS Management" isDark />
 
             {/* Navigation Links */}
             <div className="hidden md:flex items-center gap-8 text-sm font-medium">

@@ -22,6 +22,7 @@ import {
   Wallet,
   FileText
 } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -78,9 +79,8 @@ export default function DashboardLayout({
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center gap-2 p-6 border-b border-slate-200 dark:border-slate-800">
-            <BookOpen className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">Aarambh Library</span>
+          <div className="flex items-center gap-2 p-5 border-b border-slate-200 dark:border-slate-800">
+            <BrandLogo href="/dashboard" size="md" />
           </div>
 
           {/* Navigation */}

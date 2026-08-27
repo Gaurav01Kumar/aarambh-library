@@ -48,6 +48,7 @@ import {
   Calendar,
   Info,
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 interface Student {
   _id: string;
@@ -833,19 +834,7 @@ export default function PaymentsPage() {
               <div id="printable-invoice" className="p-6 sm:p-8 space-y-6">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b pb-6 border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
-                      AL
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                        Aarambh Library
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Official Payment Receipt & Invoice
-                      </p>
-                    </div>
-                  </div>
+                  <BrandLogo size="lg" subText="Official Payment Receipt & Invoice" />
                   <div className="text-right">
                     <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 rounded-full text-xs font-bold uppercase tracking-wider">
                       PAID RECEIPT
