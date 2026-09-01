@@ -10,6 +10,9 @@ const StudentSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  password: {
+    type: String,
+  },
   phone: {
     type: String,
     required: true,
@@ -95,6 +98,14 @@ const StudentSchema = new mongoose.Schema({
       type: Number, // in minutes
     },
   }],
+  resetPasswordToken: {
+    type: String,
+    default: null,
+  },
+  resetPasswordExpires: {
+    type: Date,
+    default: null,
+  },
 }, { 
   timestamps: true 
 });

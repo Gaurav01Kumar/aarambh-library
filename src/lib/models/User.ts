@@ -35,6 +35,14 @@ const UserSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
   },
+  resetPasswordToken: {
+    type: String,
+    default: null,
+  },
+  resetPasswordExpires: {
+    type: Date,
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -45,9 +53,6 @@ const UserSchema = new mongoose.Schema({
   },
 });
 
-UserSchema.pre('save', function(next) {
-  this.updatedAt = new Date();
-  ;
-});
+// updatedAt is handled by mongoose timestamps: true if added to schema options
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);
