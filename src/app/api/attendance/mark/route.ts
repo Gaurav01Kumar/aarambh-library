@@ -230,23 +230,41 @@ export async function GET(request: NextRequest) {
     await connectDB();
     const searchParams = request.nextUrl.searchParams;
     const deviceId = searchParams.get('deviceId') || undefined;
-    const seatNumber = searchParams.get('seatNumber') || undefined;
     const studentId = searchParams.get('studentId') || undefined;
 
-    if (!deviceId && !seatNumber && !studentId) {
-      return NextResponse.json({ success: false, error: 'Device ID or Seat Number required' }, { status: 400 });
+    if (!deviceId && !studentId) {
+      return NextResponse.json({
+        success: false,
+        notFound: true,
+        isDeviceReset: true,
+        message: 'No device ID provided.'
+      }, { status: 400 });
     }
 
-    const { totalMinutes: currentMinutes } = getLocalISTTime();
-    const { student, candidates } = await resolveStudentForSeat({
-      seatNumber,
-      deviceId,
-      studentId,
-      currentMinutes,
-    });
+    let student = null;
+    let candidates: any[] = [];
 
+    if (studentId) {
+      student = await Student.findById(studentId);
+      if (student && student.seatNumber) {
+        candidates = await Student.find({ seatNumber: student.seatNumber.toUpperCase(), isActive: true });
+      }
+    } else if (deviceId) {
+      // Look up student by registeredDeviceId directly in DB
+      student = await Student.findOne({ registeredDeviceId: deviceId, isActive: true });
+      if (student && student.seatNumber) {
+        candidates = await Student.find({ seatNumber: student.seatNumber.toUpperCase(), isActive: true });
+      }
+    }
+
+    // If no student is bound to this device in the DB (e.g. Admin clicked Reset Device or new device)
     if (!student) {
-      return NextResponse.json({ success: false, notFound: true, message: 'No student found for this seat/device.' }, { status: 404 });
+      return NextResponse.json({
+        success: false,
+        notFound: true,
+        isDeviceReset: true,
+        message: 'Device is not registered to any student. Please enter seat number.'
+      }, { status: 404 });
     }
 
     // Find today's attendance sessions for this student

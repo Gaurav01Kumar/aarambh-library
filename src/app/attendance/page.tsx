@@ -18,7 +18,6 @@ import {
   User,
   Clock,
   Armchair,
-  Edit3,
   Users,
   ChevronRight
 } from 'lucide-react';
@@ -87,16 +86,11 @@ export default function AttendancePage() {
     }
     setDeviceId(token);
 
-    const savedSeat = typeof window !== 'undefined' ? localStorage.getItem('library_student_seat') : null;
-    if (savedSeat) {
-      setSeatNumber(savedSeat);
-    }
-
     // 2. Verification Flow and Auto-load Student
-    verifyPrerequisites(token, savedSeat || undefined);
+    verifyPrerequisites(token);
   }, []);
 
-  const verifyPrerequisites = async (devId?: string, seat?: string, sId?: string) => {
+  const verifyPrerequisites = async (devId?: string, sId?: string) => {
     setCheckingNetwork(true);
     setStatus('idle');
     setMessage('');
@@ -134,21 +128,19 @@ export default function AttendancePage() {
       setLocation({ lat: 28.6139, lng: 77.2090 });
     } finally {
       setCheckingNetwork(false);
-      // Look up student details
       const idToUse = devId || deviceId;
-      const seatToUse = seat || seatNumber;
-      if (idToUse || seatToUse || sId) {
-        fetchStudentStatus(idToUse, seatToUse, sId);
+      if (idToUse || sId) {
+        fetchStudentStatus(idToUse, sId);
       }
     }
   };
 
-  const fetchStudentStatus = async (devId?: string, seat?: string, sId?: string) => {
+  const fetchStudentStatus = async (devId?: string, sId?: string) => {
     try {
       setFetchingStudent(true);
       const params = new URLSearchParams();
-      if (devId) params.append('deviceId', devId);
-      if (seat) params.append('seatNumber', seat);
+      const idToQuery = devId || deviceId;
+      if (idToQuery) params.append('deviceId', idToQuery);
       if (sId) params.append('studentId', sId);
 
       const res = await fetch(`/api/attendance/mark?${params.toString()}`);
@@ -166,10 +158,29 @@ export default function AttendancePage() {
         }
         setShowManualSeatInput(false);
       } else {
+        // Device is reset by Admin or not registered yet -> Clean, fresh state!
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('library_student_seat');
+        }
+        setStudentInfo(null);
+        setOtherCandidates([]);
+        setSeatNumber('');
+        setCurrentAttendanceStatus('not_checked_in');
+        setActiveSession(null);
+        setLastSession(null);
         setShowManualSeatInput(true);
       }
     } catch (err) {
       console.error('Error fetching student status:', err);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('library_student_seat');
+      }
+      setStudentInfo(null);
+      setOtherCandidates([]);
+      setSeatNumber('');
+      setCurrentAttendanceStatus('not_checked_in');
+      setActiveSession(null);
+      setLastSession(null);
       setShowManualSeatInput(true);
     } finally {
       setFetchingStudent(false);
@@ -177,7 +188,7 @@ export default function AttendancePage() {
   };
 
   const handleSelectStudent = (candId: string) => {
-    fetchStudentStatus(deviceId, studentInfo?.seatNumber || seatNumber, candId);
+    fetchStudentStatus(deviceId, candId);
   };
 
   const handleMarkAttendance = async (action: 'in' | 'out') => {
@@ -235,21 +246,6 @@ export default function AttendancePage() {
     e.preventDefault();
     if (!seatNumber.trim()) return;
     handleMarkAttendance('in');
-  };
-
-  const handleResetSeat = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('library_student_seat');
-    }
-    setStudentInfo(null);
-    setOtherCandidates([]);
-    setSeatNumber('');
-    setCurrentAttendanceStatus('not_checked_in');
-    setActiveSession(null);
-    setLastSession(null);
-    setShowManualSeatInput(true);
-    setStatus('idle');
-    setMessage('');
   };
 
   const formatTimeStr = (isoDate?: string) => {
@@ -469,16 +465,12 @@ export default function AttendancePage() {
                 </Button>
               </div>
 
-              {/* Switch Seat Option */}
+              {/* Terminal Security Notice */}
               <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={handleResetSeat}
-                  className="text-xs text-slate-400 hover:text-indigo-400 transition-colors inline-flex items-center gap-1"
-                >
-                  <Edit3 className="h-3 w-3" />
-                  <span>Enter different seat number</span>
-                </button>
+                <p className="text-[11px] text-slate-500 flex items-center justify-center gap-1">
+                  <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                  <span>Device locked to Seat {studentInfo.seatNumber}. Seat changes managed by Admin.</span>
+                </p>
               </div>
 
               {/* Security Controls */}

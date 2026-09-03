@@ -44,18 +44,24 @@ export async function PUT(
 
     const body = await request.json();
 
-    const student = await Student.findByIdAndUpdate(
-      id,
-      body,
-      { new: true, runValidators: true }
-    );
-
-    if (!student) {
+    const existingStudent = await Student.findById(id);
+    if (!existingStudent) {
       return NextResponse.json(
         { success: false, error: 'Student not found' },
         { status: 404 }
       );
     }
+
+    // If seatNumber is changed by Admin, reset registeredDeviceId so student can bind new seat
+    if (body.seatNumber && body.seatNumber.trim().toUpperCase() !== existingStudent.seatNumber?.trim().toUpperCase()) {
+      body.registeredDeviceId = null;
+    }
+
+    const student = await Student.findByIdAndUpdate(
+      id,
+      body,
+      { new: true, runValidators: true }
+    );
 
     return NextResponse.json({
       success: true,
