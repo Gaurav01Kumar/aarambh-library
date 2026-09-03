@@ -19,7 +19,8 @@ import {
   Clock,
   Armchair,
   Users,
-  ChevronRight
+  ChevronRight,
+  Edit3
 } from 'lucide-react';
 import { BrandLogo } from '@/components/brand-logo';
 
