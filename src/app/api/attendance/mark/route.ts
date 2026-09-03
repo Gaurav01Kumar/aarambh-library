@@ -21,33 +21,55 @@ function deg2rad(deg: number) {
   return deg * (Math.PI / 180);
 }
 
+// Parses time strings like "10:00", "14:00", "06:00 PM", "11:00 PM" to minutes from midnight [0, 1439]
+function parseTimeToMinutes(timeStr?: string): number | null {
+  if (!timeStr) return null;
+  const clean = timeStr.trim().toUpperCase();
+  const isPM = clean.includes('PM');
+  const isAM = clean.includes('AM');
+
+  const numbersOnly = clean.replace(/[^0-9:]/g, '');
+  const [hStr, mStr] = numbersOnly.split(':');
+  if (!hStr) return null;
+
+  let hours = parseInt(hStr, 10);
+  const minutes = mStr ? parseInt(mStr, 10) : 0;
+
+  if (isNaN(hours)) return null;
+
+  if (isPM && hours < 12) {
+    hours += 12;
+  } else if (isAM && hours === 12) {
+    hours = 0;
+  }
+
+  return ((hours * 60 + (isNaN(minutes) ? 0 : minutes)) % 1440 + 1440) % 1440;
+}
+
 // Helper to check if current time is within shift range (including overnight and 30-min buffer)
 function isWithinShiftRange(startTime: string, endTime: string, currentMinutes: number, bufferMins = 30): boolean {
   if (!startTime || !endTime) return true;
 
-  const [startH, startM] = startTime.split(':').map(Number);
-  const [endH, endM] = endTime.split(':').map(Number);
+  const startTotal = parseTimeToMinutes(startTime);
+  const endTotal = parseTimeToMinutes(endTime);
 
-  if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return true;
-
-  let startTotal = startH * 60 + startM;
-  let endTotal = endH * 60 + endM;
+  if (startTotal === null || endTotal === null) return true;
 
   // 24-hour full day shift
   if ((startTotal === 0 && endTotal >= 1439) || (startTotal === endTotal)) {
     return true;
   }
 
-  startTotal -= bufferMins;
-  endTotal += bufferMins;
+  let s = startTotal - bufferMins;
+  let e = endTotal + bufferMins;
 
   // If buffer expands to cover 24h
-  if (endTotal - startTotal >= 1440) {
+  if (e - s >= 1440) {
     return true;
   }
 
-  const normStart = ((startTotal % 1440) + 1440) % 1440;
-  const normEnd = ((endTotal % 1440) + 1440) % 1440;
+  const normStart = ((s % 1440) + 1440) % 1440;
+  const normEnd = ((e % 1440) + 1440) % 1440;
 
   if (normStart <= normEnd) {
     return currentMinutes >= normStart && currentMinutes <= normEnd;
@@ -55,6 +77,28 @@ function isWithinShiftRange(startTime: string, endTime: string, currentMinutes: 
     // Crosses midnight (e.g., 20:00 to 06:00)
     return currentMinutes >= normStart || currentMinutes <= normEnd;
   }
+}
+
+// Check if a specific student matches the current time shift
+function checkStudentShiftMatch(student: any, currentMinutes: number) {
+  const shifts: { startTime: string; endTime: string }[] = [];
+  if (Array.isArray(student.selectedShifts) && student.selectedShifts.length > 0) {
+    student.selectedShifts.forEach((s: any) => {
+      if (s.startTime && s.endTime) shifts.push({ startTime: s.startTime, endTime: s.endTime });
+    });
+  }
+  if (shifts.length === 0 && student.startTime && student.endTime) {
+    shifts.push({ startTime: student.startTime, endTime: student.endTime });
+  }
+
+  if (shifts.length === 0) return true; // No shifts defined, matches anytime
+
+  const isWithinAny = shifts.some(s => isWithinShiftRange(s.startTime, s.endTime, currentMinutes, 30));
+  const isWithinOverall = student.startTime && student.endTime
+    ? isWithinShiftRange(student.startTime, student.endTime, currentMinutes, 30)
+    : false;
+
+  return isWithinAny || isWithinOverall;
 }
 
 // Get current local IST time
@@ -84,35 +128,128 @@ function formatDurationText(minutes: number): string {
 }
 
 /**
- * GET: Fetch student attendance status by deviceId and/or seatNumber
+ * Intelligent helper to resolve the right student when a seat is shared by 2 or 3 students across different shifts
+ */
+async function resolveStudentForSeat({
+  seatNumber,
+  deviceId,
+  studentId,
+  action = 'in',
+  currentMinutes,
+}: {
+  seatNumber?: string;
+  deviceId?: string;
+  studentId?: string;
+  action?: 'in' | 'out';
+  currentMinutes: number;
+}) {
+  // 1. Explicit studentId provided
+  if (studentId) {
+    const s = await Student.findById(studentId);
+    if (s && s.isActive) {
+      const candidates = s.seatNumber ? await Student.find({ seatNumber: s.seatNumber.toUpperCase(), isActive: true }) : [s];
+      return { student: s, candidates };
+    }
+  }
+
+  // 2. Lookup by deviceId if registered
+  if (deviceId) {
+    const studentByDev = await Student.findOne({ registeredDeviceId: deviceId, isActive: true });
+    if (studentByDev) {
+      if (!seatNumber || studentByDev.seatNumber?.toUpperCase() === seatNumber.toUpperCase()) {
+        const candidates = studentByDev.seatNumber ? await Student.find({ seatNumber: studentByDev.seatNumber.toUpperCase(), isActive: true }) : [studentByDev];
+        return { student: studentByDev, candidates };
+      }
+    }
+  }
+
+  if (!seatNumber) {
+    return { student: null, candidates: [] };
+  }
+
+  // 3. Find all active students assigned to this seat
+  const seatCandidates = await Student.find({
+    seatNumber: seatNumber.trim().toUpperCase(),
+    isActive: true,
+  });
+
+  if (seatCandidates.length === 0) {
+    return { student: null, candidates: [] };
+  }
+
+  if (seatCandidates.length === 1) {
+    return { student: seatCandidates[0], candidates: seatCandidates };
+  }
+
+  // Multiple students share this seat (e.g. Morning Arif Ali & Evening Sikandar Kumar):
+  
+  // A. Check if device is mapped to any candidate
+  if (deviceId) {
+    const matchedByDev = seatCandidates.find(s => s.registeredDeviceId === deviceId);
+    if (matchedByDev) {
+      return { student: matchedByDev, candidates: seatCandidates };
+    }
+  }
+
+  // B. If action is 'out', check which student on this seat has an active unclosed session today
+  if (action === 'out') {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    for (const candidate of seatCandidates) {
+      const activeLog = await Attendance.findOne({
+        student: candidate._id,
+        date: { $gte: startOfToday },
+        status: 'success',
+        checkOut: { $exists: false }
+      });
+      if (activeLog) {
+        return { student: candidate, candidates: seatCandidates };
+      }
+    }
+  }
+
+  // C. Match candidate whose shift window covers the current time right now (with 30-min buffer)
+  const shiftMatchingCandidates = seatCandidates.filter(candidate =>
+    checkStudentShiftMatch(candidate, currentMinutes)
+  );
+
+  if (shiftMatchingCandidates.length > 0) {
+    return { student: shiftMatchingCandidates[0], candidates: seatCandidates };
+  }
+
+  // D. Fallback: return the first candidate
+  return { student: seatCandidates[0], candidates: seatCandidates };
+}
+
+/**
+ * GET: Fetch student attendance status and multi-student candidates on a seat
  */
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
     const searchParams = request.nextUrl.searchParams;
-    const deviceId = searchParams.get('deviceId');
-    const seatNumber = searchParams.get('seatNumber');
+    const deviceId = searchParams.get('deviceId') || undefined;
+    const seatNumber = searchParams.get('seatNumber') || undefined;
+    const studentId = searchParams.get('studentId') || undefined;
 
-    if (!deviceId && !seatNumber) {
+    if (!deviceId && !seatNumber && !studentId) {
       return NextResponse.json({ success: false, error: 'Device ID or Seat Number required' }, { status: 400 });
     }
 
-    let student = null;
-    if (seatNumber) {
-      student = await Student.findOne({ seatNumber: seatNumber.trim().toUpperCase() });
-    }
-    if (!student && deviceId) {
-      student = await Student.findOne({ registeredDeviceId: deviceId });
-    }
+    const { totalMinutes: currentMinutes } = getLocalISTTime();
+    const { student, candidates } = await resolveStudentForSeat({
+      seatNumber,
+      deviceId,
+      studentId,
+      currentMinutes,
+    });
 
     if (!student) {
-      return NextResponse.json({ success: false, notFound: true, message: 'Student not found' }, { status: 404 });
+      return NextResponse.json({ success: false, notFound: true, message: 'No student found for this seat/device.' }, { status: 404 });
     }
 
-    // Find today's latest attendance
-    const istDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' });
-    const todayIST = istDateFormatter.format(new Date());
-
+    // Find today's attendance sessions for this student
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
@@ -134,7 +271,19 @@ export async function GET(request: NextRequest) {
 
     const shifts = (student.selectedShifts && student.selectedShifts.length > 0)
       ? student.selectedShifts
-      : (student.startTime && student.endTime ? [{ startTime: student.startTime, endTime: student.endTime, label: 'Standard Shift' }] : []);
+      : (student.startTime && student.endTime ? [{ startTime: student.startTime, endTime: student.endTime, label: 'Shift 1' }] : []);
+
+    // Format other candidates on the same seat for easy switching if needed
+    const otherCandidates = candidates
+      .filter(c => c._id.toString() !== student._id.toString())
+      .map(c => ({
+        id: c._id,
+        name: c.name,
+        seatNumber: c.seatNumber,
+        shifts: (c.selectedShifts && c.selectedShifts.length > 0)
+          ? c.selectedShifts
+          : [{ startTime: c.startTime || '06:00', endTime: c.endTime || '23:00', label: 'Shift 1' }],
+      }));
 
     return NextResponse.json({
       success: true,
@@ -150,6 +299,7 @@ export async function GET(request: NextRequest) {
           isActive: student.isActive,
           subscriptionPlan: student.subscriptionPlan,
         },
+        otherCandidates,
         currentStatus,
         activeSession: activeSession ? {
           checkIn: activeSession.checkIn,
@@ -171,31 +321,35 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST: Mark Check-In ('in') or Check-Out ('out')
+ * POST: Mark Check-In ('in') or Check-Out ('out') with Multi-Student Seat Support
  */
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
     const body = await request.json();
-    const { seatNumber, deviceId, latitude, longitude, action = 'in' } = body;
+    const { seatNumber, deviceId, studentId, latitude, longitude, action = 'in' } = body;
 
     const forwardedFor = request.headers.get('x-forwarded-for');
     const clientIp = forwardedFor ? forwardedFor.split(',')[0].trim() : ((request as any).ip || '127.0.0.1');
 
-    if (!seatNumber || !deviceId) {
-      return NextResponse.json({ success: false, error: 'Seat Number and Device ID are required' }, { status: 400 });
+    if (!seatNumber && !studentId) {
+      return NextResponse.json({ success: false, error: 'Seat Number is required' }, { status: 400 });
+    }
+    if (!deviceId) {
+      return NextResponse.json({ success: false, error: 'Device ID is required' }, { status: 400 });
     }
 
     const isCheckOut = action === 'out';
+    const { totalMinutes: currentMinutes, formatted } = getLocalISTTime();
 
     // Helper to log failed attempts
-    const logFailure = async (studentId: any, reason: string, statusCode: number) => {
-      if (studentId) {
+    const logFailure = async (sId: any, reason: string, statusCode: number) => {
+      if (sId) {
         await Attendance.create({
-          student: studentId,
+          student: sId,
           date: new Date(),
           checkIn: new Date(),
-          seatNumber,
+          seatNumber: seatNumber || '',
           deviceId,
           latitude,
           longitude,
@@ -207,9 +361,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: reason }, { status: statusCode });
     };
 
-    // 1. Find student assigned to this seat
-    const student = await Student.findOne({ seatNumber: seatNumber.toUpperCase() });
-    
+    // 1. Resolve exact student (handles multiple students assigned to the same seat by shift / device / checkIn status)
+    const { student, candidates } = await resolveStudentForSeat({
+      seatNumber,
+      deviceId,
+      studentId,
+      action: isCheckOut ? 'out' : 'in',
+      currentMinutes,
+    });
+
     if (!student) {
       return logFailure(null, `No student is currently assigned to seat ${seatNumber}`, 404);
     }
@@ -219,7 +379,7 @@ export async function POST(request: NextRequest) {
       return logFailure(student._id, 'Membership Expired. Please renew your membership.', 403);
     }
 
-    // Collect all shifts
+    // Collect student shifts
     const shiftsToCheck: { startTime: string; endTime: string; label?: string }[] = [];
     if (Array.isArray(student.selectedShifts) && student.selectedShifts.length > 0) {
       student.selectedShifts.forEach((s: any) => {
@@ -229,7 +389,7 @@ export async function POST(request: NextRequest) {
       });
     }
     if (shiftsToCheck.length === 0 && student.startTime && student.endTime) {
-      shiftsToCheck.push({ startTime: student.startTime, endTime: student.endTime, label: 'Shift' });
+      shiftsToCheck.push({ startTime: student.startTime, endTime: student.endTime, label: 'Shift 1' });
     }
 
     // ==========================================
@@ -239,7 +399,7 @@ export async function POST(request: NextRequest) {
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
 
-      // Find active (unclosed) attendance record for today or recent
+      // Find active (unclosed) attendance record for today
       let activeAttendance = await Attendance.findOne({
         student: student._id,
         status: 'success',
@@ -256,7 +416,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (!activeAttendance) {
-        // Find most recent attendance today even if closed, to prevent error
+        // Find most recent attendance today
         const recentToday = await Attendance.findOne({
           student: student._id,
           date: { $gte: startOfToday },
@@ -272,7 +432,7 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        return logFailure(student._id, 'No active check-in session found for today. Please mark Check-In first.', 400);
+        return logFailure(student._id, `No active check-in found today for ${student.name}. Please mark Check-In first.`, 400);
       }
 
       const checkOutTime = new Date();
@@ -306,11 +466,11 @@ export async function POST(request: NextRequest) {
         const { sendAdminNotification } = await import('@/lib/email');
         sendAdminNotification({
           eventType: 'attendanceMark',
-          subject: `Attendance Checked Out: ${student.name} (Seat ${seatNumber})`,
+          subject: `Attendance Checked Out: ${student.name} (Seat ${student.seatNumber || seatNumber})`,
           title: `👋 Student Attendance Check-Out`,
           detailsHtml: `
             <p><strong>Student Name:</strong> ${student.name}</p>
-            <p><strong>Seat Assigned:</strong> Seat ${seatNumber}</p>
+            <p><strong>Seat Assigned:</strong> Seat ${student.seatNumber || seatNumber}</p>
             <p><strong>Check-In Time:</strong> ${checkInTime.toLocaleTimeString('en-IN')}</p>
             <p><strong>Check-Out Time:</strong> ${checkOutTime.toLocaleTimeString('en-IN')}</p>
             <p><strong>Session Duration:</strong> ${formatDurationText(durationMinutes)}</p>
@@ -323,6 +483,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         action: 'out',
+        student: { id: student._id, name: student.name, seatNumber: student.seatNumber },
         message: `Goodbye ${student.name}! Checked out successfully. Study duration: ${formatDurationText(durationMinutes)}.`,
         duration: durationMinutes
       });
@@ -334,8 +495,6 @@ export async function POST(request: NextRequest) {
 
     // 2.5 Check Time Slot (supports single shift, multiple selectedShifts, and 24h shifts)
     if (shiftsToCheck.length > 0) {
-      const { totalMinutes: currentMinutes, formatted } = getLocalISTTime();
-
       const isWithinAnyShift = shiftsToCheck.some(shift =>
         isWithinShiftRange(shift.startTime, shift.endTime, currentMinutes, 30)
       );
@@ -348,7 +507,7 @@ export async function POST(request: NextRequest) {
         const shiftStrings = shiftsToCheck.map(s => 
           s.label ? `${s.label} (${s.startTime} to ${s.endTime})` : `${s.startTime} to ${s.endTime}`
         ).join(', ');
-        return logFailure(student._id, `Outside Shift Hours. Your shift is ${shiftStrings}. (Current IST Time: ${formatted})`, 403);
+        return logFailure(student._id, `Outside Shift Hours for ${student.name}. Shift timing is ${shiftStrings}. (Current IST Time: ${formatted})`, 403);
       }
     }
 
@@ -360,7 +519,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (recentAttendance) {
-      return logFailure(student._id, 'Attendance already marked recently. You are currently checked in.', 400);
+      return logFailure(student._id, `Attendance already marked recently for ${student.name}. You are currently checked in.`, 400);
     }
 
     const istDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -373,7 +532,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (todayCheckIns.length >= maxShiftsPerDay && todayCheckIns.every((r: any) => r.checkOut)) {
-      return logFailure(student._id, `Attendance limit reached for today (${todayCheckIns.length}/${maxShiftsPerDay} shift check-ins completed).`, 400);
+      return logFailure(student._id, `Daily attendance limit reached for ${student.name} (${todayCheckIns.length}/${maxShiftsPerDay} shift check-ins completed).`, 400);
     }
 
     // 4. Check Device Registration
@@ -384,11 +543,10 @@ export async function POST(request: NextRequest) {
     } else {
       // Register this device to the student if no other student has it
       const existingDeviceUser = await Student.findOne({ registeredDeviceId: deviceId });
-      if (existingDeviceUser) {
-        return logFailure(student._id, 'This device is already registered to another student.', 403);
+      if (!existingDeviceUser) {
+        student.registeredDeviceId = deviceId;
+        await student.save();
       }
-      student.registeredDeviceId = deviceId;
-      await student.save();
     }
 
     // Fetch Org settings for GPS and Wi-Fi checks
@@ -434,7 +592,7 @@ export async function POST(request: NextRequest) {
       student: student._id,
       date: new Date(),
       checkIn: new Date(),
-      seatNumber,
+      seatNumber: student.seatNumber || seatNumber,
       deviceId,
       latitude,
       longitude,
@@ -457,11 +615,11 @@ export async function POST(request: NextRequest) {
       const { sendAdminNotification } = await import('@/lib/email');
       sendAdminNotification({
         eventType: 'attendanceMark',
-        subject: `Attendance Checked In: ${student.name} (Seat ${seatNumber})`,
+        subject: `Attendance Checked In: ${student.name} (Seat ${student.seatNumber || seatNumber})`,
         title: `📍 Student Attendance Check-In`,
         detailsHtml: `
           <p><strong>Student Name:</strong> ${student.name}</p>
-          <p><strong>Seat Assigned:</strong> Seat ${seatNumber}</p>
+          <p><strong>Seat Assigned:</strong> Seat ${student.seatNumber || seatNumber}</p>
           <p><strong>Check-In Time:</strong> ${new Date().toLocaleTimeString('en-IN')}</p>
           <p><strong>Fee Status:</strong> <span style="font-weight:bold; color:${student.feeStatus === 'paid' ? '#16a34a' : '#dc2626'}">${student.feeStatus.toUpperCase()}</span></p>
         `,
@@ -478,7 +636,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       action: 'in',
-      message: `Welcome ${student.name}! Attendance verified and marked successfully.`,
+      student: { id: student._id, name: student.name, seatNumber: student.seatNumber },
+      message: `Welcome ${student.name}! Attendance verified and marked successfully for Seat ${student.seatNumber || seatNumber}.`,
       warning: warningMessage
     });
 

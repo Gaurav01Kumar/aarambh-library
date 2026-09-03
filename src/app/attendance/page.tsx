@@ -19,7 +19,8 @@ import {
   Clock,
   Armchair,
   Edit3,
-  Sparkles
+  Users,
+  ChevronRight
 } from 'lucide-react';
 import { BrandLogo } from '@/components/brand-logo';
 
@@ -33,6 +34,13 @@ interface StudentInfo {
   feeStatus?: string;
   isActive?: boolean;
   subscriptionPlan?: string;
+}
+
+interface OtherCandidate {
+  id: string;
+  name: string;
+  seatNumber: string;
+  shifts: { startTime: string; endTime: string; label?: string }[];
 }
 
 interface ActiveSession {
@@ -61,6 +69,7 @@ export default function AttendancePage() {
 
   // Stored Student Info & Session State
   const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
+  const [otherCandidates, setOtherCandidates] = useState<OtherCandidate[]>([]);
   const [currentAttendanceStatus, setCurrentAttendanceStatus] = useState<'checked_in' | 'checked_out' | 'not_checked_in'>('not_checked_in');
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [lastSession, setLastSession] = useState<LastSession | null>(null);
@@ -87,7 +96,7 @@ export default function AttendancePage() {
     verifyPrerequisites(token, savedSeat || undefined);
   }, []);
 
-  const verifyPrerequisites = async (devId?: string, seat?: string) => {
+  const verifyPrerequisites = async (devId?: string, seat?: string, sId?: string) => {
     setCheckingNetwork(true);
     setStatus('idle');
     setMessage('');
@@ -128,24 +137,26 @@ export default function AttendancePage() {
       // Look up student details
       const idToUse = devId || deviceId;
       const seatToUse = seat || seatNumber;
-      if (idToUse || seatToUse) {
-        fetchStudentStatus(idToUse, seatToUse);
+      if (idToUse || seatToUse || sId) {
+        fetchStudentStatus(idToUse, seatToUse, sId);
       }
     }
   };
 
-  const fetchStudentStatus = async (devId?: string, seat?: string) => {
+  const fetchStudentStatus = async (devId?: string, seat?: string, sId?: string) => {
     try {
       setFetchingStudent(true);
       const params = new URLSearchParams();
       if (devId) params.append('deviceId', devId);
       if (seat) params.append('seatNumber', seat);
+      if (sId) params.append('studentId', sId);
 
       const res = await fetch(`/api/attendance/mark?${params.toString()}`);
       const data = await res.json();
 
       if (data.success && data.data?.student) {
         setStudentInfo(data.data.student);
+        setOtherCandidates(data.data.otherCandidates || []);
         setCurrentAttendanceStatus(data.data.currentStatus || 'not_checked_in');
         setActiveSession(data.data.activeSession || null);
         setLastSession(data.data.lastSession || null);
@@ -155,7 +166,6 @@ export default function AttendancePage() {
         }
         setShowManualSeatInput(false);
       } else {
-        // If not found, show manual seat entry
         setShowManualSeatInput(true);
       }
     } catch (err) {
@@ -164,6 +174,10 @@ export default function AttendancePage() {
     } finally {
       setFetchingStudent(false);
     }
+  };
+
+  const handleSelectStudent = (candId: string) => {
+    fetchStudentStatus(deviceId, studentInfo?.seatNumber || seatNumber, candId);
   };
 
   const handleMarkAttendance = async (action: 'in' | 'out') => {
@@ -186,6 +200,7 @@ export default function AttendancePage() {
         body: JSON.stringify({
           seatNumber: targetSeat.trim().toUpperCase(),
           deviceId,
+          studentId: studentInfo?.id || undefined,
           latitude: currentLoc.lat,
           longitude: currentLoc.lng,
           action,
@@ -205,7 +220,7 @@ export default function AttendancePage() {
         }
 
         // Refresh student status
-        fetchStudentStatus(deviceId, targetSeat.trim().toUpperCase());
+        fetchStudentStatus(deviceId, targetSeat.trim().toUpperCase(), studentInfo?.id);
       } else {
         setStatus('error');
         setMessage(data.error || `Failed to mark ${action === 'in' ? 'Check-In' : 'Check-Out'}.`);
@@ -227,6 +242,7 @@ export default function AttendancePage() {
       localStorage.removeItem('library_student_seat');
     }
     setStudentInfo(null);
+    setOtherCandidates([]);
     setSeatNumber('');
     setCurrentAttendanceStatus('not_checked_in');
     setActiveSession(null);
@@ -284,7 +300,7 @@ export default function AttendancePage() {
           {checkingNetwork || fetchingStudent ? (
             <div className="py-12 text-center space-y-4">
               <Loader2 className="h-8 w-8 animate-spin mx-auto text-indigo-400" />
-              <p className="text-sm font-medium text-slate-300">Recognizing Student & Seat...</p>
+              <p className="text-sm font-medium text-slate-300">Recognizing Student & Shift...</p>
             </div>
           ) : status === 'success' ? (
             <div className="text-center space-y-5 py-4">
@@ -313,7 +329,7 @@ export default function AttendancePage() {
                   onClick={() => setStatus('idle')} 
                   className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium border border-slate-700"
                 >
-                  Return to Panel
+                  Return to Attendance Panel
                 </Button>
               </div>
             </div>
@@ -352,7 +368,7 @@ export default function AttendancePage() {
                 <div className="pt-2 border-t border-slate-800/60 flex items-start gap-2 text-xs text-slate-300">
                   <Clock className="h-4 w-4 text-indigo-400 mt-0.5 shrink-0" />
                   <div className="space-y-0.5">
-                    <span className="font-semibold text-slate-400">Allowed Shift Hours:</span>
+                    <span className="font-semibold text-slate-400">Shift Timing:</span>
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {studentInfo.selectedShifts && studentInfo.selectedShifts.length > 0 ? (
                         studentInfo.selectedShifts.map((s, idx) => (
@@ -371,7 +387,7 @@ export default function AttendancePage() {
 
                 {/* Current Status Indicator */}
                 <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Current Status:</span>
+                  <span className="text-slate-400">Status Today:</span>
                   {currentAttendanceStatus === 'checked_in' ? (
                     <span className="flex items-center gap-1.5 text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
                       <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
@@ -389,8 +405,37 @@ export default function AttendancePage() {
                 </div>
               </div>
 
+              {/* Other students sharing the same seat across different shifts */}
+              {otherCandidates.length > 0 && (
+                <div className="bg-slate-950/40 border border-slate-800/60 rounded-xl p-2.5 space-y-1.5 text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-400 font-semibold text-[11px]">
+                    <Users className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>Other shifts on Seat {studentInfo.seatNumber}:</span>
+                  </div>
+                  <div className="space-y-1">
+                    {otherCandidates.map((cand) => (
+                      <div
+                        key={cand.id}
+                        onClick={() => handleSelectStudent(cand.id)}
+                        className="flex items-center justify-between bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 p-2 rounded-lg cursor-pointer transition-colors group"
+                      >
+                        <div>
+                          <span className="font-semibold text-slate-200 group-hover:text-white">{cand.name}</span>
+                          <span className="text-[10px] text-slate-400 block">
+                            {cand.shifts.map(s => `${s.startTime} - ${s.endTime}`).join(', ')}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-medium text-indigo-400 flex items-center gap-0.5">
+                          Switch to Me <ChevronRight className="h-3.5 w-3.5" />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* IN and OUT Action Buttons */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-2 gap-3 pt-1">
                 <Button
                   onClick={() => handleMarkAttendance('in')}
                   disabled={status === 'loading'}
@@ -432,7 +477,7 @@ export default function AttendancePage() {
                   className="text-xs text-slate-400 hover:text-indigo-400 transition-colors inline-flex items-center gap-1"
                 >
                   <Edit3 className="h-3 w-3" />
-                  <span>Not you or want to change seat?</span>
+                  <span>Enter different seat number</span>
                 </button>
               </div>
 
@@ -440,7 +485,7 @@ export default function AttendancePage() {
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
                 <button
                   type="button"
-                  onClick={() => verifyPrerequisites(deviceId, studentInfo.seatNumber)}
+                  onClick={() => verifyPrerequisites(deviceId, studentInfo.seatNumber, studentInfo.id)}
                   className="flex items-center gap-1 hover:text-white transition-colors"
                 >
                   <RefreshCw className="h-3 w-3" />
@@ -487,7 +532,7 @@ export default function AttendancePage() {
                   />
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  ⚡ Once entered, this terminal remembers your seat automatically.
+                  ⚡ Auto-matches your shift timing and remembers this terminal.
                 </p>
               </div>
 
