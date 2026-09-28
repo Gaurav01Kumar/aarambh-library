@@ -167,6 +167,10 @@ export default function StudentsPage() {
   const [setPasswordSaving, setSetPasswordSaving] = useState(false);
   const [setPasswordError, setSetPasswordError] = useState('');
 
+  // Edit Student Dialog
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+
   // ─── Fetch Students ─────────────────────────────────────────────────
   const fetchStudents = useCallback(async () => {
     try {
@@ -624,43 +628,61 @@ export default function StudentsPage() {
                           <TableCell className="text-xs text-slate-500">{formatDate(student.joinDate)}</TableCell>
                           {/* Actions */}
                           <TableCell className="text-right" onClick={e => e.stopPropagation()}>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuItem onClick={() => openDetail(student)}>
-                                  <Eye className="h-4 w-4 mr-2" /> View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleViewQR(student)}>
-                                  <QrCode className="h-4 w-4 mr-2" /> View QR Code
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openEmailDialog(student)}>
-                                  <Mail className="h-4 w-4 mr-2" /> Send Email
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleResetDevice(student._id)}>
-                                  <SmartphoneNfc className="h-4 w-4 mr-2" /> Reset Device
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openSetPasswordDialog(student)}>
-                                  <Key className="h-4 w-4 mr-2" /> Set Password
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleSendPasswordReset(student.email)}>
-                                  <Key className="h-4 w-4 mr-2" /> Send Reset Link
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleToggleActive(student)}>
-                                  {student.isActive ? <UserX className="h-4 w-4 mr-2" /> : <UserCheck className="h-4 w-4 mr-2" />}
-                                  {student.isActive ? 'Deactivate' : 'Activate'}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <EditStudentDialog student={student} onStudentUpdated={fetchStudents} />
-                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(student._id)}>
-                                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                                title="Edit Student"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingStudent(student);
+                                  setEditOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+
+                              <DropdownMenu>
+                                <DropdownMenuTrigger>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem onClick={() => { setEditingStudent(student); setEditOpen(true); }}>
+                                    <Edit className="h-4 w-4 mr-2 text-indigo-600" /> Edit Student
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openDetail(student)}>
+                                    <Eye className="h-4 w-4 mr-2" /> View Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleViewQR(student)}>
+                                    <QrCode className="h-4 w-4 mr-2" /> View QR Code
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openEmailDialog(student)}>
+                                    <Mail className="h-4 w-4 mr-2" /> Send Email
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleResetDevice(student._id)}>
+                                    <SmartphoneNfc className="h-4 w-4 mr-2" /> Reset Device
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openSetPasswordDialog(student)}>
+                                    <Key className="h-4 w-4 mr-2" /> Set Password
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleSendPasswordReset(student.email)}>
+                                    <Key className="h-4 w-4 mr-2" /> Send Reset Link
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleToggleActive(student)}>
+                                    {student.isActive ? <UserX className="h-4 w-4 mr-2" /> : <UserCheck className="h-4 w-4 mr-2" />}
+                                    {student.isActive ? 'Deactivate' : 'Activate'}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(student._id)}>
+                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -736,6 +758,9 @@ export default function StudentsPage() {
 
               {/* Quick Actions */}
               <div className="flex items-center gap-2 px-6 py-3 border-b bg-slate-50 dark:bg-slate-900/50 overflow-x-auto">
+                <Button size="sm" variant="outline" className="text-xs h-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200" onClick={() => { setEditingStudent(selectedStudent); setEditOpen(true); }}>
+                  <Edit className="h-3.5 w-3.5 mr-1" /> Edit Profile
+                </Button>
                 <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => openEmailDialog(selectedStudent)}>
                   <Mail className="h-3.5 w-3.5 mr-1" /> Email
                 </Button>
@@ -988,6 +1013,22 @@ export default function StudentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ═══ Edit Student Dialog ════════════════════════════════════════ */}
+      <EditStudentDialog
+        student={editingStudent}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onStudentUpdated={() => {
+          fetchStudents();
+          if (selectedStudent && editingStudent && selectedStudent._id === editingStudent._id) {
+            // refresh selected student details
+            fetch(`/api/students/${selectedStudent._id}`)
+              .then(r => r.json())
+              .then(d => { if (d.success) setSelectedStudent(d.data); });
+          }
+        }}
+      />
     </div>
   );
 }

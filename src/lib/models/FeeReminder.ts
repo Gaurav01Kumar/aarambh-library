@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const FeeReminderSchema = new mongoose.Schema({
   student: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Student',
+    ref: 'LibraryMember',
     required: true,
   },
   dueDate: {
@@ -45,6 +45,9 @@ const FeeReminderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Transaction',
   },
+  emailTemplate: {
+    type: String,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -55,9 +58,8 @@ const FeeReminderSchema = new mongoose.Schema({
   },
 });
 
-FeeReminderSchema.pre('save', function(next) {
+FeeReminderSchema.pre('save', function() {
   this.updatedAt = new Date();
-  ;
 });
 
 export default mongoose.models.FeeReminder || mongoose.model('FeeReminder', FeeReminderSchema);

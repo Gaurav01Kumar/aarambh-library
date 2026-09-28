@@ -232,7 +232,7 @@ export default function AttendancePage() {
         }
 
         // Refresh student status
-        fetchStudentStatus(deviceId, targetSeat.trim().toUpperCase(), studentInfo?.id);
+        fetchStudentStatus(deviceId, studentInfo?.id);
       } else {
         setStatus('error');
         setMessage(data.error || `Failed to mark ${action === 'in' ? 'Check-In' : 'Check-Out'}.`);
@@ -478,7 +478,7 @@ export default function AttendancePage() {
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
                 <button
                   type="button"
-                  onClick={() => verifyPrerequisites(deviceId, studentInfo.seatNumber, studentInfo.id)}
+                  onClick={() => verifyPrerequisites(deviceId, studentInfo.id)}
                   className="flex items-center gap-1 hover:text-white transition-colors"
                 >
                   <RefreshCw className="h-3 w-3" />

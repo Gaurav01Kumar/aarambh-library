@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Attendance from '@/lib/models/Attendance';
+import '@/lib/models/Student'; // Required for populate('student') to resolve the ref
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const limit = parseInt(searchParams.get('limit') || '50');
     const studentId = searchParams.get('studentId') || '';
     const date = searchParams.get('date') || '';
 
@@ -19,12 +22,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (date) {
-      query.date = new Date(date);
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+      query.date = { $gte: startOfDay, $lte: endOfDay };
     }
 
     const skip = (page - 1) * limit;
     const attendance = await Attendance.find(query)
-      .populate('student')
+      .populate({ path: 'student', select: 'name email seatNumber feeStatus' })
       .sort({ date: -1, checkIn: -1 })
       .skip(skip)
       .limit(limit);

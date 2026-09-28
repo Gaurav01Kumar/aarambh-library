@@ -88,9 +88,8 @@ const OrganizationSchema = new mongoose.Schema({
   },
 });
 
-OrganizationSchema.pre('save', function(next) {
+OrganizationSchema.pre('save', function() {
   this.updatedAt = new Date();
-  ;
 });
 
 export default mongoose.models.Organization || mongoose.model('Organization', OrganizationSchema);

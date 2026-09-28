@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import FeeReminder from '@/lib/models/FeeReminder';
+import '@/lib/models/Student'; // Required for populate('student')
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

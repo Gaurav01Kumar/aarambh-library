@@ -1,9 +1,9 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const AttendanceSchema = new mongoose.Schema({
   student: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'LibraryMember',
+    ref: "LibraryMember",
     required: true,
   },
   date: {
@@ -25,12 +25,12 @@ const AttendanceSchema = new mongoose.Schema({
   },
   checkInMethod: {
     type: String,
-    enum: ['qr', 'manual', 'biometric'],
-    default: 'qr',
+    enum: ["qr", "manual", "biometric"],
+    default: "qr",
   },
   checkOutMethod: {
     type: String,
-    enum: ['qr', 'manual', 'biometric'],
+    enum: ["qr", "manual", "biometric"],
   },
   notes: {
     type: String,
@@ -52,8 +52,8 @@ const AttendanceSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['success', 'failed'],
-    default: 'success',
+    enum: ["success", "failed"],
+    default: "success",
   },
   failureReason: {
     type: String,
@@ -68,14 +68,9 @@ const AttendanceSchema = new mongoose.Schema({
   },
 });
 
-AttendanceSchema.pre('save', function(next) {
+AttendanceSchema.pre("save", function () {
   this.updatedAt = new Date();
-  ;
 });
 
-// Force reload model in dev to catch schema changes
-if (mongoose.models.Attendance) {
-  delete mongoose.models.Attendance;
-}
-
-export default mongoose.model('Attendance', AttendanceSchema);
+export default mongoose.models.Attendance ||
+  mongoose.model("Attendance", AttendanceSchema);

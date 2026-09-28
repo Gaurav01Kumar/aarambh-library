@@ -30,9 +30,8 @@ const RoleSchema = new mongoose.Schema({
   },
 });
 
-RoleSchema.pre('save', function(next) {
+RoleSchema.pre('save', function() {
   this.updatedAt = new Date();
-  ;
 });
 
 export default mongoose.models.Role || mongoose.model('Role', RoleSchema);

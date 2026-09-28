@@ -42,9 +42,8 @@ const ReservationSchema = new mongoose.Schema({
   },
 });
 
-ReservationSchema.pre('save', function(next) {
+ReservationSchema.pre('save', function() {
   this.updatedAt = new Date();
-  ;
 });
 
 export default mongoose.models.Reservation || mongoose.model('Reservation', ReservationSchema);

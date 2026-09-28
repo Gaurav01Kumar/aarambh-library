@@ -12,11 +12,22 @@ import {
   DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Loader2, User, Armchair, Upload, Clock, Check } from 'lucide-react';
+import { Plus, Loader2, User, Armchair, Upload, Clock, Check, Info } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 
 interface AddStudentDialogProps {
   onStudentAdded?: () => void;
+}
+
+interface CurrentStudent {
+  _id: string;
+  name: string;
+  subscriptionPlan?: string;
+  startTime?: string;
+  endTime?: string;
+  feeStatus?: string;
 }
 
 interface Seat {
@@ -27,6 +38,7 @@ interface Seat {
   isOccupied: boolean;
   isAvailable: boolean;
   isAC: boolean;
+  currentStudents?: CurrentStudent[];
   occupiedShifts?: { startTime: string; endTime: string }[];
 }
 
@@ -450,33 +462,107 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
                   ) : filteredSeats.length === 0 ? (
                     <div className="text-center py-8 text-slate-500 text-xs">No seats available in this area</div>
                   ) : (
-                    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
-                      {filteredSeats.map((seat) => (
-                        <button
-                          key={seat._id}
-                          type="button"
-                          disabled={seat.isOccupied || !seat.isAvailable}
-                          onClick={() => setFormData({ ...formData, seatNumber: seat.seatNumber })}
-                          className={`
-                            relative p-1.5 rounded border transition-all flex flex-col items-center
-                            ${formData.seatNumber === seat.seatNumber 
-                              ? 'border-primary bg-primary/10 ring-2 ring-primary ring-offset-1' 
-                              : seat.isOccupied 
-                                ? 'border-red-50 bg-red-50/30 opacity-40 cursor-not-allowed' 
-                                : 'border-slate-100 hover:border-primary/40 bg-slate-50/30'}
-                          `}
-                        >
-                          <Armchair className={`h-4 w-4 ${formData.seatNumber === seat.seatNumber ? 'text-primary' : seat.isOccupied ? 'text-red-400' : 'text-slate-400'}`} />
-                          <span className="text-[9px] font-bold mt-1">{seat.seatNumber}</span>
-                          {seat.isOccupied && <span className="absolute -top-1 -right-1 text-[8px] px-1 bg-red-100 text-red-600 rounded">Taken</span>}
-                        </button>
-                      ))}
-                    </div>
+                    <TooltipProvider>
+                      <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
+                        {filteredSeats.map((seat) => {
+                          const isSelected = formData.seatNumber === seat.seatNumber;
+                          const isOccupiedForShift = seat.isOccupied;
+                          const studentsList = seat.currentStudents || [];
+
+                          return (
+                            <Tooltip key={seat._id}>
+                              <TooltipTrigger>
+                                <button
+                                  type="button"
+                                  disabled={isOccupiedForShift || !seat.isAvailable}
+                                  onClick={() => setFormData({ ...formData, seatNumber: seat.seatNumber })}
+                                  className={`
+                                    w-full relative p-1.5 rounded-lg border transition-all flex flex-col items-center cursor-pointer
+                                    ${isSelected 
+                                      ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 ring-2 ring-indigo-600 ring-offset-1' 
+                                      : isOccupiedForShift 
+                                        ? 'border-red-200 bg-red-50/40 dark:bg-red-950/30 opacity-60 hover:opacity-100 cursor-not-allowed' 
+                                        : studentsList.length > 0
+                                          ? 'border-amber-200 bg-amber-50/30 hover:border-indigo-400'
+                                          : 'border-slate-100 hover:border-indigo-400 hover:bg-slate-50/50 bg-white dark:bg-slate-900'}
+                                  `}
+                                >
+                                  <Armchair className={`h-4 w-4 ${isSelected ? 'text-indigo-600' : isOccupiedForShift ? 'text-red-400' : studentsList.length > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
+                                  <span className="text-[9px] font-bold mt-1">{seat.seatNumber}</span>
+                                  {isOccupiedForShift && (
+                                    <span className="absolute -top-1 -right-1 text-[7px] font-bold px-1 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded shadow-xs">
+                                      Taken
+                                    </span>
+                                  )}
+                                  {!isOccupiedForShift && studentsList.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 text-[7px] font-bold px-1 bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 rounded shadow-xs" title="Shared seat (available for this shift)">
+                                      {studentsList.length}
+                                    </span>
+                                  )}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="w-64 p-3 bg-slate-900 text-white border-slate-800 shadow-2xl rounded-xl z-50">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                    <span className="font-bold text-xs text-slate-100 flex items-center gap-1.5">
+                                      <Armchair className="h-3.5 w-3.5 text-indigo-400" />
+                                      Seat {seat.seatNumber}
+                                    </span>
+                                    <Badge variant={isOccupiedForShift ? "destructive" : "outline"} className="text-[9px] px-1.5 py-0 border-slate-700">
+                                      {isOccupiedForShift ? 'Occupied in Shift' : 'Available for Shift'}
+                                    </Badge>
+                                  </div>
+
+                                  {studentsList.length > 0 ? (
+                                    <div className="space-y-1.5 text-xs">
+                                      <p className="text-[10px] uppercase font-bold text-slate-400">All Subscriptions on this Seat:</p>
+                                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                                        {studentsList.map((st, i) => (
+                                          <div key={i} className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/60">
+                                            <div className="flex items-center justify-between font-semibold text-slate-200">
+                                              <span>{st.name}</span>
+                                              <span className="text-[9px] font-medium text-indigo-300 bg-indigo-950 px-1.5 py-0.5 rounded border border-indigo-800">
+                                                {st.subscriptionPlan || 'Standard'}
+                                              </span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                                              <Clock className="h-3 w-3 text-slate-400" />
+                                              <span>
+                                                Shift: {st.startTime ? `${formatTime(st.startTime)} - ${formatTime(st.endTime || '')}` : 'Full Day'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-emerald-400 font-medium py-1">
+                                      ✓ Completely free (No students on any shift)
+                                    </div>
+                                  )}
+
+                                  <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-800 flex items-center justify-between">
+                                    <span>Floor: {seat.floor}</span>
+                                    <span>Section: {seat.section}</span>
+                                    {seat.isAC && <span className="text-sky-400 font-bold">AC</span>}
+                                  </div>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        })}
+                      </div>
+                    </TooltipProvider>
                   )}
                 </div>
                 
-                <div className="flex gap-4 text-[10px] text-slate-500 font-medium italic">
-                  <p>* Seats are filtered in real-time based on your selected shift.</p>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 font-medium">
+                  <p>* Hover over any seat to see all students, subscriptions, and shift timings assigned to it.</p>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-white border border-slate-300"></span> Free</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-100 border border-amber-300"></span> Shared / Other Shift</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-100 border border-red-300"></span> Occupied (Taken)</span>
+                  </div>
                 </div>
               </div>
             </div>

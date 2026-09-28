@@ -4,13 +4,17 @@ import Student from '@/lib/models/Student';
 import Transaction from '@/lib/models/Transaction';
 import Payment from '@/lib/models/Payment';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit') || '500');
 
     const payments = await Payment.find()
-      .sort({ createdAt: -1 })
-      .limit(100);
+      .sort({ date: -1, createdAt: -1 })
+      .limit(limit);
 
     return NextResponse.json({
       success: true,
@@ -74,7 +78,32 @@ export async function POST(request: NextRequest) {
 
     // Generate transaction ID & custom UTR
     const autoTxnId = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    const autoReceipt = `REC-${Date.now().toString().slice(-6)}`;
     const finalUtr = utr && utr.trim() !== '' ? utr.trim() : autoTxnId;
+
+    const parsedTotalPrice = parseFloat(totalPrice) || 0;
+    const finalPaidAmount = body.paidAmount !== undefined && body.paidAmount !== ''
+      ? parseFloat(body.paidAmount)
+      : parsedTotalPrice;
+
+    const diff = finalPaidAmount - parsedTotalPrice;
+    let dueAmount = 0;
+    let advanceAmount = 0;
+    let paymentType: 'full' | 'partial' | 'advance' = 'full';
+    let paymentStatus: 'completed' | 'partial' = 'completed';
+    let studentFeeStatus = 'paid';
+
+    if (diff < 0) {
+      dueAmount = Math.abs(diff);
+      paymentType = 'partial';
+      paymentStatus = 'partial';
+      studentFeeStatus = 'partial';
+    } else if (diff > 0) {
+      advanceAmount = diff;
+      paymentType = 'advance';
+      paymentStatus = 'completed';
+      studentFeeStatus = 'paid';
+    }
 
     // Create payment record
     const payment = await Payment.create({
@@ -82,29 +111,35 @@ export async function POST(request: NextRequest) {
       studentName: student.name,
       amount: student.feeAmount,
       months: parseInt(months),
-      totalPrice,
+      totalPrice: parsedTotalPrice,
+      paidAmount: finalPaidAmount,
+      dueAmount,
+      advanceAmount,
+      paymentType,
+      remarks: body.remarks || '',
       paymentMethod,
       date: paymentDate,
       transactionId: autoTxnId,
       utr: finalUtr,
-      status: 'completed',
+      receiptNumber: autoReceipt,
+      status: paymentStatus,
     });
 
-    // Create transaction record (income)
+    // Create transaction record (income for the actual paid amount)
     const transaction = await Transaction.create({
-      title: `Fee Payment - ${student.name}`,
-      amount: totalPrice,
+      title: `Fee Payment - ${student.name}${paymentType === 'partial' ? ` (Partial - Due: ₹${dueAmount})` : ''}`,
+      amount: finalPaidAmount,
       type: 'income',
       category: 'Fees',
       paymentMethod,
       date: paymentDate,
-      description: `${months} month${parseInt(months) > 1 ? 's' : ''} payment for ${student.name}`,
+      description: `${months} month${parseInt(months) > 1 ? 's' : ''} payment for ${student.name}${body.remarks ? ` - Note: ${body.remarks}` : ''}`,
       utr: finalUtr,
     });
 
     // Update student fee status
     await Student.findByIdAndUpdate(studentId, {
-      feeStatus: 'paid',
+      feeStatus: studentFeeStatus,
       feeDueDate: new Date(new Date(date).setMonth(new Date(date).getMonth() + parseInt(months))),
     });
 
@@ -113,14 +148,17 @@ export async function POST(request: NextRequest) {
       const { sendAdminNotification } = await import('@/lib/email');
       sendAdminNotification({
         eventType: 'paymentReceived',
-        subject: `Payment Received: ₹${totalPrice.toLocaleString()} from ${student.name}`,
+        subject: `Payment Received: ₹${finalPaidAmount.toLocaleString()} from ${student.name}${dueAmount > 0 ? ` (Due: ₹${dueAmount})` : ''}`,
         title: `💳 New Payment Collection Recorded`,
         detailsHtml: `
           <p><strong>Student:</strong> ${student.name}</p>
-          <p><strong>Amount Collected:</strong> ₹${totalPrice.toLocaleString()}</p>
-          <p><strong>Duration:</strong> ${months} Month(s)</p>
-          <p><strong>Method:</strong> ${paymentMethod.toUpperCase()}</p>
+          <p><strong>Total Fee:</strong> ₹${parsedTotalPrice.toLocaleString()}</p>
+          <p><strong>Amount Paid:</strong> ₹${finalPaidAmount.toLocaleString()}</p>
+          ${dueAmount > 0 ? `<p><strong>Pending Due:</strong> <span style="color: #dc2626; font-weight: bold;">₹${dueAmount.toLocaleString()}</span></p>` : ''}
+          ${advanceAmount > 0 ? `<p><strong>Advance Paid:</strong> <span style="color: #16a34a; font-weight: bold;">₹${advanceAmount.toLocaleString()}</span></p>` : ''}
+          <p><strong>Payment Mode:</strong> ${paymentMethod.toUpperCase()}</p>
           <p><strong>Txn ID / Ref:</strong> <code>${finalUtr}</code></p>
+          ${body.remarks ? `<p><strong>Remarks:</strong> ${body.remarks}</p>` : ''}
         `,
       }).catch(err => console.error('Admin notification error:', err));
     } catch (err) {
