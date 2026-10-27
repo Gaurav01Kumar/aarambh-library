@@ -67,6 +67,8 @@ import {
   Coins,
   ArrowRight,
   User,
+  AlertTriangle,
+  ShieldAlert,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 
@@ -98,6 +100,9 @@ interface Payment {
   utr?: string;
   receiptNumber?: string;
   status: string;
+  isFake?: boolean;
+  fakeReason?: string;
+  fakeFlaggedAt?: string;
   createdAt: string;
 }
 
@@ -108,6 +113,13 @@ export default function PaymentsPage() {
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  // Mark as fake payment state
+  const [fakePaymentModalOpen, setFakePaymentModalOpen] = useState(false);
+  const [selectedFakePayment, setSelectedFakePayment] = useState<Payment | null>(null);
+  const [fakeReason, setFakeReason] = useState('Payment verification failed: Fake transaction screenshot / Unverified UTR provided.');
+  const [isMarkingFake, setIsMarkingFake] = useState(false);
+  const [fakeFeedback, setFakeFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [modalStudentSearch, setModalStudentSearch] = useState("");
 
   // Filters State
@@ -719,6 +731,47 @@ export default function PaymentsPage() {
     setEmailInput(stu?.email || "");
     setEmailStatus(null);
     setInvoiceModalOpen(true);
+  };
+
+  // Mark Payment as Fake Handler
+  const handleMarkPaymentAsFake = async () => {
+    if (!selectedFakePayment) return;
+    setIsMarkingFake(true);
+    setFakeFeedback(null);
+
+    try {
+      const targetId = selectedFakePayment.transactionId || selectedFakePayment._id;
+      const res = await fetch(`/api/transactions/${targetId}/mark-fake`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: fakeReason }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setFakeFeedback({
+          type: 'success',
+          message: data.message || 'Payment flagged as fake! Student fee status reverted to unpaid and fraud warning email dispatched.',
+        });
+        setFakePaymentModalOpen(false);
+        setSelectedFakePayment(null);
+        fetchPayments();
+        fetchStudents();
+      } else {
+        setFakeFeedback({
+          type: 'error',
+          message: data.error || 'Failed to mark payment as fake',
+        });
+      }
+    } catch (err: any) {
+      setFakeFeedback({
+        type: 'error',
+        message: err.message || 'Network error while updating payment',
+      });
+    } finally {
+      setIsMarkingFake(false);
+    }
   };
 
   // Print Invoice
@@ -1403,8 +1456,36 @@ export default function PaymentsPage() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
       </div>
+      </div>
+
+      {/* Fake Payment Feedback Notification Banner */}
+      {fakeFeedback && (
+        <div
+          className={`p-4 rounded-xl border flex items-center justify-between text-sm ${
+            fakeFeedback.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
+              : "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {fakeFeedback.type === "success" ? (
+              <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0" />
+            )}
+            <span>{fakeFeedback.message}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setFakeFeedback(null)}
+            className="h-7 w-7 p-0"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Summary KPI Cards (Responsive & Filter-Aware) */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -2105,15 +2186,38 @@ export default function PaymentsPage() {
                                   )}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleOpenInvoice(payment)}
-                                    className="h-7 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"
-                                  >
-                                    <FileText className="h-3.5 w-3.5 mr-1 text-indigo-500" />
-                                    Invoice
-                                  </Button>
+                                  {payment.status === "fake" || payment.isFake ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-500/30">
+                                      <AlertTriangle className="h-3 w-3 text-rose-500" />
+                                      Fake Payment
+                                    </span>
+                                  ) : (
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleOpenInvoice(payment)}
+                                        className="h-7 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                                      >
+                                        <FileText className="h-3.5 w-3.5 mr-1 text-indigo-500" />
+                                        Invoice
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedFakePayment(payment);
+                                          setFakeReason("Payment verification failed: Fake transaction screenshot / Unverified UTR provided.");
+                                          setFakePaymentModalOpen(true);
+                                        }}
+                                        className="h-7 text-xs border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/50 font-medium"
+                                        title="Mark as Fake Payment"
+                                      >
+                                        <AlertTriangle className="h-3.5 w-3.5 mr-1 text-rose-500" />
+                                        Mark Fake
+                                      </Button>
+                                    </div>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );
@@ -2260,15 +2364,38 @@ export default function PaymentsPage() {
                           })}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenInvoice(payment)}
-                            className="h-8 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"
-                          >
-                            <FileText className="h-3.5 w-3.5 mr-1 text-indigo-500" />
-                            Invoice
-                          </Button>
+                          {payment.status === "fake" || payment.isFake ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-500/30">
+                              <AlertTriangle className="h-3 w-3 text-rose-500" />
+                              Fake Payment
+                            </span>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenInvoice(payment)}
+                                className="h-8 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                              >
+                                <FileText className="h-3.5 w-3.5 mr-1 text-indigo-500" />
+                                Invoice
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedFakePayment(payment);
+                                  setFakeReason("Payment verification failed: Fake transaction screenshot / Unverified UTR provided.");
+                                  setFakePaymentModalOpen(true);
+                                }}
+                                className="h-8 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/50 font-medium"
+                                title="Mark as Fake Payment"
+                              >
+                                <AlertTriangle className="h-3.5 w-3.5 mr-1 text-rose-500" />
+                                Mark Fake
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -2718,6 +2845,96 @@ export default function PaymentsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* MARK AS FAKE PAYMENT CONFIRMATION DIALOG */}
+      {selectedFakePayment && (
+        <Dialog open={fakePaymentModalOpen} onOpenChange={setFakePaymentModalOpen}>
+          <DialogContent className="max-w-md bg-white dark:bg-slate-900 border-rose-500/40">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                <ShieldAlert className="h-5 w-5 text-rose-500" />
+                Mark Payment as Fake / Fraudulent
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+                Flag this payment as invalid, revert student fee status to unpaid, and dispatch a fraud warning email.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-2">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Student Name:</span>
+                  <span className="font-bold text-slate-800 dark:text-white">{selectedFakePayment.studentName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Payment Amount:</span>
+                  <span className="font-extrabold text-rose-600 dark:text-rose-400 text-sm">
+                    ₹{(selectedFakePayment.paidAmount || selectedFakePayment.totalPrice).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Receipt / UTR:</span>
+                  <span className="font-mono text-slate-600 dark:text-slate-300">
+                    {selectedFakePayment.receiptNumber || selectedFakePayment.utr || selectedFakePayment.transactionId}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="fakeReasonPayment" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Reason for Flagging as Fake *
+                </Label>
+                <Textarea
+                  id="fakeReasonPayment"
+                  rows={3}
+                  value={fakeReason}
+                  onChange={(e) => setFakeReason(e.target.value)}
+                  placeholder="e.g. Bank statement mismatch, edited screenshot, invalid UTR"
+                  className="text-xs"
+                  disabled={isMarkingFake}
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-800 dark:text-rose-300 space-y-1">
+                <p className="font-bold">Automated Security Actions Taken:</p>
+                <p>• Payment & Transaction marked as <strong>FAKE</strong>.</p>
+                <p>• Student fee status reverted to <strong>UNPAID</strong>.</p>
+                <p>• Formal <strong>Fraud Warning Email</strong> sent to student.</p>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFakePaymentModalOpen(false)}
+                disabled={isMarkingFake}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleMarkPaymentAsFake}
+                disabled={isMarkingFake || !fakeReason.trim()}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+              >
+                {isMarkingFake ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    Flagging & Warning...
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-4 w-4 mr-1.5" />
+                    Confirm Fake Payment
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

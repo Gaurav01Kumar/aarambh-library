@@ -373,3 +373,149 @@ export async function sendStudentWelcomeEmail({
   }
 }
 
+export async function sendFraudPaymentWarningEmail({
+  to,
+  studentName,
+  amount,
+  transactionId,
+  receiptNumber,
+  reason,
+  seatNumber,
+}: {
+  to: string;
+  studentName: string;
+  amount: number;
+  transactionId?: string;
+  receiptNumber?: string;
+  reason?: string;
+  seatNumber?: string;
+}) {
+  try {
+    const Organization = (await import('@/lib/models/Organization')).default;
+    await connectDB();
+    const org = await Organization.findOne();
+    const orgName = org?.name || 'Aarambh Library';
+    const orgPhone = org?.phone || '+91 9876543210';
+    const orgEmail = org?.email || 'info@aarambhlibrary.com';
+
+    const flagReason = reason || 'Payment transaction reference could not be verified with official bank records.';
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; margin: 0; padding: 24px 10px; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 2px solid #ef4444; box-shadow: 0 10px 25px -5px rgba(239, 68, 68, 0.25); }
+    .header { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
+    .header h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; text-transform: uppercase; }
+    .header p { margin: 8px 0 0 0; opacity: 0.95; font-size: 13px; font-weight: 500; }
+    .body { padding: 32px 28px; font-size: 14px; line-height: 1.6; color: #334155; }
+    .alert-box { background: #fef2f2; border: 1px solid #fecaca; border-left: 5px solid #dc2626; border-radius: 8px; padding: 16px; margin: 20px 0; font-size: 14px; color: #991b1b; }
+    .card { background: #f8fafc; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #e2e8f0; }
+    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+    .row:last-child { border-bottom: none; }
+    .label { color: #64748b; font-weight: 500; }
+    .value { color: #0f172a; font-weight: 700; text-align: right; }
+    .consequences { background: #fff7ed; border: 1px solid #ffedd5; border-radius: 10px; padding: 18px; margin: 20px 0; font-size: 13px; color: #9a3412; }
+    .consequences ul { margin: 8px 0 0 0; padding-left: 20px; }
+    .consequences li { margin-bottom: 6px; }
+    .btn { display: inline-block; background: #dc2626; color: #ffffff !important; font-weight: 700; font-size: 14px; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin-top: 10px; text-align: center; }
+    .footer { text-align: center; padding: 20px; font-size: 12px; color: #94a3b8; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚨 URGENT: Payment Verification Failed</h1>
+      <p>Official Security & Accounts Notice • ${orgName}</p>
+    </div>
+
+    <div class="body">
+      <p>Dear <strong>${studentName}</strong>,</p>
+
+      <div class="alert-box">
+        <strong>⚠️ FRAUD ALERT / INVALID TRANSACTION:</strong><br>
+        Your recent library payment submission of <strong>₹${amount.toLocaleString('en-IN')}</strong> has failed account audit and has been officially marked as <strong>FAKE / INVALID</strong> by the administration.
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0; color: #1e293b; font-size: 15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Flagged Transaction Details</h3>
+        <table style="width: 100%; font-size: 13px;">
+          <tr>
+            <td style="padding: 7px 0; color: #64748b;">Student Name:</td>
+            <td style="padding: 7px 0; font-weight: 700; text-align: right; color: #0f172a;">${studentName}</td>
+          </tr>
+          ${seatNumber ? `
+          <tr>
+            <td style="padding: 7px 0; color: #64748b;">Assigned Seat:</td>
+            <td style="padding: 7px 0; font-weight: 700; text-align: right; color: #dc2626;">Seat ${seatNumber} (At Risk)</td>
+          </tr>
+          ` : ''}
+          <tr>
+            <td style="padding: 7px 0; color: #64748b;">Claimed Amount:</td>
+            <td style="padding: 7px 0; font-weight: 800; text-align: right; color: #dc2626; font-size: 16px;">₹${amount.toLocaleString('en-IN')}</td>
+          </tr>
+          ${transactionId ? `
+          <tr>
+            <td style="padding: 7px 0; color: #64748b;">Transaction Ref / UTR:</td>
+            <td style="padding: 7px 0; font-weight: 700; text-align: right; font-family: monospace; color: #334155;">${transactionId}</td>
+          </tr>
+          ` : ''}
+          ${receiptNumber ? `
+          <tr>
+            <td style="padding: 7px 0; color: #64748b;">Receipt Number:</td>
+            <td style="padding: 7px 0; font-weight: 700; text-align: right; font-family: monospace; color: #334155;">${receiptNumber}</td>
+          </tr>
+          ` : ''}
+          <tr>
+            <td style="padding: 7px 0; color: #64748b;">Administrative Reason:</td>
+            <td style="padding: 7px 0; font-weight: 700; text-align: right; color: #991b1b;">${flagReason}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="consequences">
+        <strong>⚠️ Immediate Administrative Actions Enforced:</strong>
+        <ul>
+          <li>Your Library Fee Status has been immediately reverted to <strong>UNPAID</strong>.</li>
+          <li>Your assigned seat is placed on hold and subject to immediate reallocation.</li>
+          <li>Digital gate QR pass attendance access may be suspended upon entry.</li>
+        </ul>
+      </div>
+
+      <p style="font-weight: 600; color: #0f172a; margin-top: 20px;">
+        Required Action (Within 24 Hours):
+      </p>
+      <p style="font-size: 13px; color: #475569;">
+        Please visit the <strong>${orgName}</strong> administration front desk with genuine bank transfer confirmation or clear your pending fee dues in cash to prevent disciplinary action and permanent membership termination.
+      </p>
+
+      <p style="font-size: 13px; color: #64748b; margin-top: 24px;">
+        For urgent assistance, contact the accounts desk:<br>
+        📞 <strong>${orgPhone}</strong> | ✉️ <strong>${orgEmail}</strong>
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>&copy; ${new Date().getFullYear()} ${orgName} • Security & Accounts Department</p>
+      <p>This is an automated administrative warning email.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    await sendEmail({
+      to,
+      subject: `🚨 URGENT NOTICE: Payment Verification Failed / Flagged as Invalid — ${orgName}`,
+      html,
+    });
+    console.log(`[Fraud Email] Dispatched fake payment warning email to: ${to}`);
+  } catch (error) {
+    console.error('Error in sendFraudPaymentWarningEmail:', error);
+  }
+}
+
+

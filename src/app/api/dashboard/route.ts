@@ -9,6 +9,14 @@ import Attendance from '@/lib/models/Attendance';
 
 export async function GET(request: NextRequest) {
   try {
+    const userRole = request.headers.get('x-user-role');
+    if (userRole === 'student') {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Admin credentials required' },
+        { status: 403 }
+      );
+    }
+
     await connectDB();
 
     // Get all students for stats

@@ -19,8 +19,41 @@ const TransactionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'online', 'bank_transfer', 'others'],
+    enum: ['cash', 'online', 'bank_transfer', 'others', 'card'],
     default: 'cash',
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed', 'refunded', 'fake'],
+    default: 'completed',
+  },
+  isFake: {
+    type: Boolean,
+    default: false,
+  },
+  fakeReason: {
+    type: String,
+    default: '',
+  },
+  fakeFlaggedAt: {
+    type: Date,
+  },
+  studentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'LibraryMember',
+  },
+  studentName: {
+    type: String,
+  },
+  studentEmail: {
+    type: String,
+  },
+  paymentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Payment',
+  },
+  receiptNumber: {
+    type: String,
   },
   date: {
     type: Date,
@@ -43,5 +76,8 @@ const TransactionSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-// Rename to LibraryTransaction to bypass any cached models named Transaction
+if (mongoose.models && mongoose.models.LibraryTransaction) {
+  delete mongoose.models.LibraryTransaction;
+}
+
 export default mongoose.models.LibraryTransaction || mongoose.model('LibraryTransaction', TransactionSchema);

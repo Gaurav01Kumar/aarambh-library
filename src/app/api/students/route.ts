@@ -4,6 +4,14 @@ import Student from '@/lib/models/Student';
 
 export async function GET(request: NextRequest) {
   try {
+    const userRole = request.headers.get('x-user-role');
+    if (userRole === 'student') {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Admin credentials required to view student roster' },
+        { status: 403 }
+      );
+    }
+
     await connectDB();
 
     const searchParams = request.nextUrl.searchParams;

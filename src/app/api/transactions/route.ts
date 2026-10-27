@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get('type');
+    const status = searchParams.get('status');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
@@ -19,16 +20,52 @@ export async function GET(request: NextRequest) {
       query.type = type;
     }
 
+    if (status) {
+      query.status = status;
+    }
+
     if (startDate || endDate) {
       query.date = {};
       if (startDate) query.date.$gte = new Date(startDate);
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const transactions = await Transaction.find(query).sort({ date: -1 });
+    const rawTransactions = await Transaction.find(query).sort({ date: -1, createdAt: -1 });
 
+    // Fetch payments to map student information where needed
+    const allPayments = await Payment.find().select('studentId studentName transactionId utr receiptNumber');
+    const paymentByTxnId = new Map();
+    const paymentByUtr = new Map();
+    allPayments.forEach(p => {
+      if (p.transactionId) paymentByTxnId.set(p.transactionId, p);
+      if (p.utr) paymentByUtr.set(p.utr, p);
+    });
+
+    // Enhance transactions with student details
+    const transactions = rawTransactions.map(t => {
+      const obj = t.toObject();
+      const matchedPayment = paymentByTxnId.get(t._id.toString()) || (t.utr && paymentByUtr.get(t.utr));
+
+      let studentName = obj.studentName || matchedPayment?.studentName;
+      if (!studentName && obj.title && obj.title.startsWith('Fee Payment -')) {
+        studentName = obj.title.replace(/^Fee Payment -\s*/, '').split('(')[0].trim();
+      }
+
+      return {
+        ...obj,
+        student: {
+          name: studentName || 'General / Library',
+          email: obj.studentEmail || '',
+        },
+        receiptNumber: obj.receiptNumber || matchedPayment?.receiptNumber || `REC-${obj._id.toString().slice(-6)}`,
+        transactionId: obj.utr || obj.referenceId || `TXN-${obj._id.toString().slice(-8)}`,
+      };
+    });
+
+    // Exclude fake/fraudulent transactions from legitimate income summary
+    const summaryMatch = { ...query, status: { $ne: 'fake' } };
     const summary = await Transaction.aggregate([
-      { $match: query },
+      { $match: summaryMatch },
       {
         $group: {
           _id: '$type',
@@ -40,6 +77,7 @@ export async function GET(request: NextRequest) {
     const stats = {
       totalIncome: summary.find(s => s._id === 'income')?.total || 0,
       totalExpense: summary.find(s => s._id === 'expense')?.total || 0,
+      fakeCount: rawTransactions.filter(t => t.status === 'fake' || t.isFake).length,
     };
 
     return NextResponse.json({
@@ -47,7 +85,7 @@ export async function GET(request: NextRequest) {
       data: transactions,
       stats: {
         ...stats,
-        netProfit: stats.totalIncome - stats.totalExpense
+        netProfit: stats.totalIncome - stats.totalExpense,
       }
     });
   } catch (error) {

@@ -189,12 +189,19 @@ export default function StudentRegistrationPage() {
           <CardDescription className="text-lg mb-8">
             Thank you for registering with Aarambh Library. Our team will contact you shortly to confirm your seat.
           </CardDescription>
-          <Link href="/">
-            <Button className="w-full">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
-          </Link>
+          <div className="space-y-3">
+            <Link href="/auth/signin">
+              <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">
+                Sign In to Student Portal
+              </Button>
+            </Link>
+            <Link href="/">
+              <Button variant="outline" className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
+            </Link>
+          </div>
         </Card>
       </div>
     );

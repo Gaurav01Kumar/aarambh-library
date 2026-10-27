@@ -34,10 +34,17 @@ export default function SignInPage() {
       const data = await response.json();
 
       if (data.success) {
-        // Store user in localStorage for demo purposes
-        localStorage.setItem('user', JSON.stringify(data.data.user));
-        // Use Next.js router for navigation
-        router.push('/dashboard');
+        const user = data.data.user;
+        localStorage.setItem('user', JSON.stringify(user));
+
+        // ROLE-BASED ROUTING:
+        // Admin / Staff go to admin dashboard
+        // Students go to their personal Student Portal ONLY
+        if (user.role === 'admin' || user.role === 'staff') {
+          router.push('/dashboard');
+        } else {
+          router.push('/student-portal');
+        }
       } else {
         setError(data.error || 'Invalid email or password');
       }
@@ -63,22 +70,22 @@ export default function SignInPage() {
         <Card>
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardDescription>Enter your email and password to access your portal</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+                <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm font-medium">
                   {error}
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email Address</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@library.com"
+                  placeholder="your.email@example.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
@@ -117,8 +124,8 @@ export default function SignInPage() {
 
               <div className="text-center text-sm text-slate-600 dark:text-slate-400">
                 Don't have an account?{' '}
-                <Link href="/auth/signup" className="text-primary hover:underline">
-                  Sign up
+                <Link href="/auth/signup" className="text-primary hover:underline font-medium">
+                  Sign up as Student
                 </Link>
               </div>
             </form>

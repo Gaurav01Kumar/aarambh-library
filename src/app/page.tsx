@@ -49,7 +49,7 @@ export default function LandingPage() {
               <Link href="#preview" className="text-slate-300 hover:text-white transition-colors relative py-1 hover:after:w-full after:w-0 after:h-0.5 after:bg-indigo-500 after:absolute after:bottom-0 after:left-0 after:transition-all after:duration-300">
                 Live Preview
               </Link>
-              <Link href="#student-portal" className="text-slate-300 hover:text-white transition-colors relative py-1 hover:after:w-full after:w-0 after:h-0.5 after:bg-indigo-500 after:absolute after:bottom-0 after:left-0 after:transition-all after:duration-300">
+              <Link href="/student-portal" className="text-slate-300 hover:text-white transition-colors relative py-1 hover:after:w-full after:w-0 after:h-0.5 after:bg-indigo-500 after:absolute after:bottom-0 after:left-0 after:transition-all after:duration-300">
                 Student Portal
               </Link>
               <Link href="#about" className="text-slate-300 hover:text-white transition-colors relative py-1 hover:after:w-full after:w-0 after:h-0.5 after:bg-indigo-500 after:absolute after:bottom-0 after:left-0 after:transition-all after:duration-300">
@@ -377,12 +377,19 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                <Link href="/student-registration">
-                  <Button size="lg" className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30">
-                    Open Student Registration Portal
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <Link href="/student-portal">
+                    <Button size="lg" className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30">
+                      Login to Student Portal
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/student-registration">
+                    <Button size="lg" variant="outline" className="border-slate-700 hover:border-slate-600 text-slate-300 hover:bg-slate-800">
+                      New Registration
+                    </Button>
+                  </Link>
+                </div>
               </div>
 
               {/* Visual Card Component */}
@@ -521,7 +528,7 @@ export default function LandingPage() {
               <ul className="space-y-2.5 text-xs text-slate-400">
                 <li><Link href="#features" className="hover:text-indigo-400 transition-colors">Features</Link></li>
                 <li><Link href="#preview" className="hover:text-indigo-400 transition-colors">Seat Grid Preview</Link></li>
-                <li><Link href="#student-portal" className="hover:text-indigo-400 transition-colors">Student Portal</Link></li>
+                <li><Link href="/student-portal" className="hover:text-indigo-400 transition-colors">Student Portal</Link></li>
                 <li><Link href="/student-registration" className="hover:text-indigo-400 transition-colors">Student Registration</Link></li>
               </ul>
             </div>

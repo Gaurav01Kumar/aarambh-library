@@ -66,8 +66,19 @@ const PaymentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'completed', 'partial', 'failed'],
+    enum: ['pending', 'completed', 'partial', 'failed', 'fake'],
     default: 'completed',
+  },
+  isFake: {
+    type: Boolean,
+    default: false,
+  },
+  fakeReason: {
+    type: String,
+    default: '',
+  },
+  fakeFlaggedAt: {
+    type: Date,
   },
   createdAt: {
     type: Date,

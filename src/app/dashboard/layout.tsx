@@ -20,7 +20,8 @@ import {
   BookOpen,
   CreditCard,
   Wallet,
-  FileText
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { BrandLogo } from '@/components/brand-logo';
 
@@ -44,22 +45,76 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) {
-      router.push('/auth/signin');
-    } else {
-      setUser(JSON.parse(storedUser));
-    }
+    const verifyAccess = async () => {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) {
+        router.push('/auth/signin');
+        return;
+      }
+      try {
+        const parsedUser = JSON.parse(storedUser);
+
+        // 1. Immediate client-side check
+        if (parsedUser.role !== 'admin' && parsedUser.role !== 'staff') {
+          console.warn('Unauthorized access attempt: role is student');
+          router.push('/access-denied');
+          return;
+        }
+
+        // 2. LIVE SERVER-SIDE DATABASE VERIFICATION:
+        // Even if localStorage claims role: 'admin' (from a stale session or client tampering),
+        // verify against the authoritative MongoDB record in real time!
+        const res = await fetch('/api/auth/verify-role', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: parsedUser.email, id: parsedUser._id }),
+        });
+
+        const data = await res.json();
+
+        if (!data.success || !data.isAdminOrStaff) {
+          console.warn('Live DB verification rejected admin access! Current database role is:', data.role);
+          // Overwrite any stale admin role in localStorage with the authentic student profile
+          if (data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+          } else {
+            localStorage.removeItem('user');
+          }
+          setIsAuthorized(false);
+          router.push('/access-denied');
+          return;
+        }
+
+        // Real admin/staff confirmed by database
+        setUser(data.user || parsedUser);
+        setIsAuthorized(true);
+      } catch (err) {
+        console.error('Session validation error:', err);
+        router.push('/auth/signin');
+      }
+    };
+
+    verifyAccess();
   }, [router]);
 
   const handleSignOut = () => {
     localStorage.removeItem('user');
     router.push('/auth/signin');
   };
+
+  if (!isAuthorized || !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-slate-300">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-500 mb-3" />
+        <p className="text-sm font-medium">Verifying administrator credentials...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
