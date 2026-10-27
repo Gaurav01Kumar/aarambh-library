@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Transaction from '@/lib/models/Transaction';
 import Payment from '@/lib/models/Payment';
@@ -24,26 +25,52 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     const reason = body.reason || 'Payment verification failed: Unverified / Fake payment proof provided.';
 
-    // 1. Find the transaction
-    let transaction = await Transaction.findById(id);
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(id) && mongoose.Types.ObjectId.isValid(id);
 
-    // If not found by direct _id, try finding by referenceId or utr
-    if (!transaction) {
-      transaction = await Transaction.findOne({
-        $or: [{ utr: id }, { referenceId: id }],
+    // 1. Look for matching Payment
+    let payment = null;
+    if (isObjectId) {
+      payment = await Payment.findById(id);
+    }
+    if (!payment) {
+      payment = await Payment.findOne({
+        $or: [
+          { transactionId: id },
+          { utr: id },
+          { receiptNumber: id },
+        ],
       });
     }
 
-    // 2. Also look for a matching payment
-    let payment = await Payment.findOne({
-      $or: [
-        { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
-        { transactionId: id },
-        { utr: id },
-        { transactionId: transaction?._id?.toString() },
-        { utr: transaction?.utr },
-      ].filter(Boolean),
-    });
+    // 2. Look for matching Transaction
+    let transaction = null;
+    if (isObjectId) {
+      transaction = await Transaction.findById(id);
+    }
+    if (!transaction) {
+      transaction = await Transaction.findOne({
+        $or: [
+          { referenceId: id },
+          { utr: id },
+          { receiptNumber: id },
+          ...(payment?._id ? [{ paymentId: payment._id }] : []),
+          ...(payment?.transactionId ? [{ referenceId: payment.transactionId }] : []),
+        ],
+      });
+    }
+
+    // If transaction was found, but payment wasn't found yet:
+    if (transaction && !payment) {
+      payment = await Payment.findOne({
+        $or: [
+          ...(transaction.paymentId ? [{ _id: transaction.paymentId }] : []),
+          ...(transaction._id ? [{ transactionId: transaction._id.toString() }] : []),
+          ...(transaction.referenceId ? [{ transactionId: transaction.referenceId }] : []),
+          ...(transaction.utr ? [{ utr: transaction.utr }] : []),
+          ...(transaction.receiptNumber ? [{ receiptNumber: transaction.receiptNumber }] : []),
+        ],
+      });
+    }
 
     if (!transaction && !payment) {
       return NextResponse.json(
