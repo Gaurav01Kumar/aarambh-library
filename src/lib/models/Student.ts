@@ -62,6 +62,14 @@ const StudentSchema = new mongoose.Schema({
   profileImage: {
     type: String,
   },
+  targetExam: {
+    type: String,
+    default: '',
+  },
+  studyStage: {
+    type: String,
+    default: '',
+  },
   startTime: {
     type: String, // HH:mm
   },

@@ -81,6 +81,8 @@ export async function GET(request: NextRequest) {
           feeDueDate: student.feeDueDate,
           subscriptionPlan: student.subscriptionPlan || 'basic',
           subscriptionExpiry: student.subscriptionExpiry,
+          targetExam: student.targetExam || '',
+          studyStage: student.studyStage || '',
           joinDate: student.joinDate,
           isActive: student.isActive,
         },
