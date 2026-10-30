@@ -1,7 +1,12 @@
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/library-management';
 
 async function main() {
-  await mongoose.connect('mongodb://localhost:27017/library-management');
+  await mongoose.connect(MONGODB_URI);
   console.log('Connected to MongoDB');
 
   const usersCollection = mongoose.connection.collection('users');
