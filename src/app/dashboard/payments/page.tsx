@@ -381,20 +381,23 @@ export default function PaymentsPage() {
       }
 
       // 5. Status / Balance Filter
-      if (
+      const isPaymentFake = p.isFake || p.status === "fake";
+      if (selectedStatusFilter === "fake") {
+        if (!isPaymentFake) return false;
+      } else if (isPaymentFake) {
+        if (selectedStatusFilter !== "all") return false;
+      } else if (
         selectedStatusFilter === "due" &&
         !(p.dueAmount && p.dueAmount > 0) &&
         p.status !== "partial"
       ) {
         return false;
-      }
-      if (
+      } else if (
         selectedStatusFilter === "advance" &&
         !(p.advanceAmount && p.advanceAmount > 0)
       ) {
         return false;
-      }
-      if (
+      } else if (
         selectedStatusFilter === "completed" &&
         ((p.dueAmount && p.dueAmount > 0) || p.status === "partial")
       ) {
@@ -442,6 +445,8 @@ export default function PaymentsPage() {
     cashAmount: number;
     onlineAmount: number;
     otherAmount: number;
+    fakeCount: number;
+    fakeAmount: number;
     payments: Payment[];
   }
 
@@ -451,6 +456,7 @@ export default function PaymentsPage() {
     filteredPayments.forEach((p) => {
       const sortKey = getMonthSortKey(p.date);
       const monthLabel = getMonthKey(p.date);
+      const isFake = p.isFake || p.status === "fake";
       const actualPaid =
         p.paidAmount !== undefined ? p.paidAmount : p.totalPrice;
       const due = p.dueAmount || 0;
@@ -466,22 +472,30 @@ export default function PaymentsPage() {
           cashAmount: 0,
           onlineAmount: 0,
           otherAmount: 0,
+          fakeCount: 0,
+          fakeAmount: 0,
           payments: [],
         };
       }
 
       groups[sortKey].payments.push(p);
-      groups[sortKey].totalFee += p.totalPrice || 0;
-      groups[sortKey].totalCollected += actualPaid || 0;
-      groups[sortKey].totalDue += due;
-      groups[sortKey].count += 1;
 
-      if (p.paymentMethod === "cash") {
-        groups[sortKey].cashAmount += actualPaid;
-      } else if (p.paymentMethod === "online") {
-        groups[sortKey].onlineAmount += actualPaid;
+      if (!isFake) {
+        groups[sortKey].totalFee += p.totalPrice || 0;
+        groups[sortKey].totalCollected += actualPaid || 0;
+        groups[sortKey].totalDue += due;
+        groups[sortKey].count += 1;
+
+        if (p.paymentMethod === "cash") {
+          groups[sortKey].cashAmount += actualPaid;
+        } else if (p.paymentMethod === "online") {
+          groups[sortKey].onlineAmount += actualPaid;
+        } else {
+          groups[sortKey].otherAmount += actualPaid;
+        }
       } else {
-        groups[sortKey].otherAmount += actualPaid;
+        groups[sortKey].fakeCount += 1;
+        groups[sortKey].fakeAmount += actualPaid || 0;
       }
     });
 
@@ -492,20 +506,32 @@ export default function PaymentsPage() {
 
   // Summary statistics for current view
   const summaryStats = useMemo(() => {
-    const totalFee = filteredPayments.reduce(
+    const legitimatePayments = filteredPayments.filter(
+      (p) => !p.isFake && p.status !== "fake",
+    );
+    const fakePayments = filteredPayments.filter(
+      (p) => p.isFake || p.status === "fake",
+    );
+
+    const totalFee = legitimatePayments.reduce(
       (sum, p) => sum + (p.totalPrice || 0),
       0,
     );
-    const totalCollected = filteredPayments.reduce((sum, p) => {
+    const totalCollected = legitimatePayments.reduce((sum, p) => {
       const paid = p.paidAmount !== undefined ? p.paidAmount : p.totalPrice;
       return sum + paid;
     }, 0);
-    const totalDue = filteredPayments.reduce(
+    const totalDue = legitimatePayments.reduce(
       (sum, p) => sum + (p.dueAmount || 0),
       0,
     );
-    const count = filteredPayments.length;
-    const dueCount = filteredPayments.filter(
+    const fakeAmount = fakePayments.reduce((sum, p) => {
+      const paid = p.paidAmount !== undefined ? p.paidAmount : p.totalPrice;
+      return sum + paid;
+    }, 0);
+    const count = legitimatePayments.length;
+    const fakeCount = fakePayments.length;
+    const dueCount = legitimatePayments.filter(
       (p) => (p.dueAmount && p.dueAmount > 0) || p.status === "partial",
     ).length;
 
@@ -515,6 +541,8 @@ export default function PaymentsPage() {
       totalDue,
       count,
       dueCount,
+      fakeCount,
+      fakeAmount,
       avgPerPayment: count > 0 ? Math.round(totalCollected / count) : 0,
     };
   }, [filteredPayments]);
@@ -1488,7 +1516,11 @@ export default function PaymentsPage() {
       )}
 
       {/* Summary KPI Cards (Responsive & Filter-Aware) */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div
+        className={`grid gap-4 grid-cols-1 sm:grid-cols-2 ${
+          summaryStats.fakeCount > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"
+        }`}
+      >
         <Card className="border-indigo-100 dark:border-indigo-950 bg-gradient-to-br from-indigo-50/50 to-white dark:from-slate-900 dark:to-slate-950">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
@@ -1503,7 +1535,7 @@ export default function PaymentsPage() {
               ₹{summaryStats.totalCollected.toLocaleString()}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              From {summaryStats.count} payment record
+              From {summaryStats.count} verified payment record
               {summaryStats.count === 1 ? "" : "s"}
             </p>
           </CardContent>
@@ -1569,6 +1601,28 @@ export default function PaymentsPage() {
             </p>
           </CardContent>
         </Card>
+
+        {summaryStats.fakeCount > 0 && (
+          <Card className="border-rose-300 dark:border-rose-900 bg-rose-50/70 dark:bg-rose-950/40 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                Fake / Voided
+              </CardTitle>
+              <div className="p-1.5 bg-rose-200 dark:bg-rose-900/60 rounded-md text-rose-700 dark:text-rose-300">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-extrabold text-rose-700 dark:text-rose-300">
+                ₹{summaryStats.fakeAmount.toLocaleString()}
+              </div>
+              <p className="text-xs font-medium text-rose-600 dark:text-rose-400 mt-1">
+                {summaryStats.fakeCount} payment{summaryStats.fakeCount === 1 ? "" : "s"} voided
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Filter & Search Toolbar */}
@@ -1727,6 +1781,9 @@ export default function PaymentsPage() {
                   <SelectItem value="advance">✨ Advance Payments</SelectItem>
                   <SelectItem value="completed">
                     ✅ Fully Paid (No Due)
+                  </SelectItem>
+                  <SelectItem value="fake">
+                    🚨 Fake / Flagged Payments
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -2009,6 +2066,14 @@ export default function PaymentsPage() {
                             Due: ₹{group.totalDue.toLocaleString()}
                           </Badge>
                         )}
+                        {group.fakeCount > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800"
+                          >
+                            🚨 {group.fakeCount} Fake Voided
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Cash: ₹{group.cashAmount.toLocaleString()} • Online/UPI:
@@ -2084,10 +2149,17 @@ export default function PaymentsPage() {
                               payment.advanceAmount &&
                               payment.advanceAmount > 0;
 
+                            const isPaymentFake =
+                              payment.status === "fake" || payment.isFake;
+
                             return (
                               <TableRow
                                 key={payment._id}
-                                className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50"
+                                className={`hover:bg-slate-50/50 dark:hover:bg-slate-900/50 ${
+                                  isPaymentFake
+                                    ? "bg-rose-50/70 dark:bg-rose-950/30 border-l-4 border-l-rose-500"
+                                    : ""
+                                }`}
                               >
                                 <TableCell className="font-mono text-xs text-indigo-600 dark:text-indigo-400 font-semibold">
                                   {invNo}
@@ -2103,18 +2175,36 @@ export default function PaymentsPage() {
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  <div className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                                    ₹{actualPaid.toLocaleString()}
-                                  </div>
-                                  {actualPaid !== payment.totalPrice && (
-                                    <span className="text-[10px] text-slate-400 block">
-                                      Total Fee: ₹
-                                      {payment.totalPrice.toLocaleString()}
-                                    </span>
+                                  {isPaymentFake ? (
+                                    <div>
+                                      <div className="font-semibold text-rose-600 dark:text-rose-400 line-through text-sm">
+                                        ₹{actualPaid.toLocaleString()}
+                                      </div>
+                                      <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold uppercase tracking-wider block">
+                                        Void (Fake)
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <div className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                                        ₹{actualPaid.toLocaleString()}
+                                      </div>
+                                      {actualPaid !== payment.totalPrice && (
+                                        <span className="text-[10px] text-slate-400 block">
+                                          Total Fee: ₹
+                                          {payment.totalPrice.toLocaleString()}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  {hasDue ? (
+                                  {isPaymentFake ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                                      <AlertTriangle className="h-3 w-3 text-rose-600" />
+                                      Fake / Flagged
+                                    </span>
+                                  ) : hasDue ? (
                                     <div className="flex flex-col gap-1 items-start">
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
                                         <AlertCircle className="h-3 w-3" />
@@ -2281,8 +2371,18 @@ export default function PaymentsPage() {
                     const hasAdvance =
                       payment.advanceAmount && payment.advanceAmount > 0;
 
+                    const isPaymentFake =
+                      payment.status === "fake" || payment.isFake;
+
                     return (
-                      <TableRow key={payment._id}>
+                      <TableRow
+                        key={payment._id}
+                        className={
+                          isPaymentFake
+                            ? "bg-rose-50/70 dark:bg-rose-950/30 border-l-4 border-l-rose-500"
+                            : ""
+                        }
+                      >
                         <TableCell className="font-mono text-xs text-indigo-600 dark:text-indigo-400 font-semibold">
                           {invNo}
                         </TableCell>
@@ -2295,17 +2395,35 @@ export default function PaymentsPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="font-bold text-emerald-600 dark:text-emerald-400">
-                            ₹{actualPaid.toLocaleString()}
-                          </div>
-                          {actualPaid !== payment.totalPrice && (
-                            <span className="text-[10px] text-slate-400 block">
-                              Fee: ₹{payment.totalPrice.toLocaleString()}
-                            </span>
+                          {isPaymentFake ? (
+                            <div>
+                              <div className="font-semibold text-rose-600 dark:text-rose-400 line-through text-sm">
+                                ₹{actualPaid.toLocaleString()}
+                              </div>
+                              <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold uppercase tracking-wider block">
+                                Void (Fake)
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="font-bold text-emerald-600 dark:text-emerald-400">
+                                ₹{actualPaid.toLocaleString()}
+                              </div>
+                              {actualPaid !== payment.totalPrice && (
+                                <span className="text-[10px] text-slate-400 block">
+                                  Fee: ₹{payment.totalPrice.toLocaleString()}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                         <TableCell>
-                          {hasDue ? (
+                          {isPaymentFake ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                              <AlertTriangle className="h-3 w-3 text-rose-600" />
+                              Fake / Flagged
+                            </span>
+                          ) : hasDue ? (
                             <div className="flex flex-col gap-1 items-start">
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
                                 <AlertCircle className="h-3 w-3" />
