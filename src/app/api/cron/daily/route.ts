@@ -37,13 +37,13 @@ export async function GET(request: NextRequest) {
         console.log(`[CRON] Expired membership for student: ${student.name} (${student._id})`);
       }
 
-      // 2. Check Fee Status
-      // If fee is due in the past and they haven't paid
-      if (student.feeDueDate && new Date(student.feeDueDate) < now && student.feeStatus !== 'unpaid') {
+      // 2. Check Fee Status (On 1st of every month, mark unpaid if not paid for current month)
+      const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      if (student.feeDueDate && new Date(student.feeDueDate) <= startOfCurrentMonth && student.feeStatus !== 'unpaid') {
         student.feeStatus = 'unpaid';
         stats.paymentsMarkedOverdue++;
         updated = true;
-        console.log(`[CRON] Marked payment overdue for student: ${student.name} (${student._id})`);
+        console.log(`[CRON] Marked payment unpaid for new month (${student.name} - ${student._id})`);
         
         // 3. Generate Reminder (Here we just log it, but could insert into a Notification collection or send an email)
         console.log(`[CRON Reminder] 📧 Send payment reminder to ${student.email}`);

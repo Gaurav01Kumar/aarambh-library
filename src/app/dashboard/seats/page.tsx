@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -10,13 +11,18 @@ import {
   Users, 
   UserCheck, 
   AlertCircle, 
+  AlertTriangle,
   Search,
   Filter,
   Edit,
   Sparkles,
   Layers,
   CreditCard,
-  CalendarCheck
+  CalendarCheck,
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  ArrowRight
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -60,6 +66,9 @@ interface Student {
   email: string;
   phone: string;
   feeStatus: 'paid' | 'unpaid' | 'partial';
+  paidForCurrentMonth?: boolean;
+  isOverdue?: boolean;
+  lastPaymentDate?: string | null;
   feeDueDate: string;
   isActive: boolean;
   subscriptionPlan: string;
@@ -130,6 +139,7 @@ export default function SeatsPage() {
   const [activeTab, setActiveTab] = useState<string>('');
   const [editingSeat, setEditingSeat] = useState<Seat | null>(null);
   const [viewMode, setViewMode] = useState<'payment' | 'attendance' | 'subscription'>('payment');
+  const [showOverduePanel, setShowOverduePanel] = useState<boolean>(true);
 
   useEffect(() => {
     fetchSeats();
@@ -229,27 +239,38 @@ export default function SeatsPage() {
   };
 
   const isPaymentPending = (student: any) => {
+    if (typeof student.paidForCurrentMonth === 'boolean') {
+      return !student.paidForCurrentMonth || student.feeStatus !== 'paid';
+    }
     if (student.feeStatus !== 'paid') return true;
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
 
-    if (!student.feeDueDate && !student.subscriptionExpiry) {
+    const now = new Date();
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+    if (!student.feeDueDate) {
       return true;
     }
 
-    if (student.feeDueDate) {
-      const dueDate = new Date(student.feeDueDate);
-      dueDate.setHours(0, 0, 0, 0);
-      if (dueDate < today) return true;
+    const dueDate = new Date(student.feeDueDate);
+    dueDate.setHours(0, 0, 0, 0);
+    if (dueDate <= startOfCurrentMonth) return true;
+
+    return false;
+  };
+
+  const isStudentOverdue = (student: any) => {
+    if (typeof student.isOverdue === 'boolean') {
+      return student.isOverdue;
     }
-    
-    if (student.subscriptionExpiry) {
-      const expiry = new Date(student.subscriptionExpiry);
-      expiry.setHours(0, 0, 0, 0);
-      if (expiry < today) return true;
-    }
-    
+    if (!isPaymentPending(student)) return false;
+
+    const now = new Date();
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+    // Overdue if not paid by the 10th of the current month OR due from an earlier month
+    if (now.getDate() > 10) return true;
+    if (student.feeDueDate && new Date(student.feeDueDate) < startOfCurrentMonth) return true;
+
     return false;
   };
 
@@ -294,6 +315,7 @@ export default function SeatsPage() {
         statusFilter === 'all' ? true :
         statusFilter === 'paid' ? students.every(s => !isPaymentPending(s)) && students.length > 0 :
         statusFilter === 'unpaid' ? students.some(s => isPaymentPending(s)) :
+        statusFilter === 'overdue' ? students.some(s => isStudentOverdue(s)) :
         statusFilter === 'available' ? (!seat.isOccupied && seat.isAvailable) :
         statusFilter === 'maintenance' ? !seat.isAvailable : true;
 
@@ -320,6 +342,19 @@ export default function SeatsPage() {
     const allStudents = seats.flatMap(s => s.currentStudents || []);
     
     const pendingPayments = allStudents.filter(s => isPaymentPending(s)).length;
+    const overdueStudentsList: Array<{ student: Student; seatNumber: string; floor: string }> = [];
+    seats.forEach(seat => {
+      seat.currentStudents?.forEach(student => {
+        if (isStudentOverdue(student)) {
+          overdueStudentsList.push({
+            student,
+            seatNumber: seat.seatNumber,
+            floor: seat.floor || 'Main',
+          });
+        }
+      });
+    });
+
     const activeMemberships = allStudents.filter(s => s.isActive).length;
     const expiredMemberships = allStudents.filter(s => new Date(s.subscriptionExpiry) < new Date()).length;
     
@@ -330,7 +365,17 @@ export default function SeatsPage() {
       planCounts[plan] = (planCounts[plan] || 0) + 1;
     });
 
-    return { total, available, occupied, pendingPayments, activeMemberships, expiredMemberships, planCounts };
+    return {
+      total,
+      available,
+      occupied,
+      pendingPayments,
+      overdueCount: overdueStudentsList.length,
+      overdueStudentsList,
+      activeMemberships,
+      expiredMemberships,
+      planCounts,
+    };
   }, [seats]);
 
   const isStudentPresentToday = (student: Student) => {
@@ -357,11 +402,14 @@ export default function SeatsPage() {
       }
 
       if (viewMode === 'payment') {
+        const hasOverdue = seat.currentStudents.some(s => isStudentOverdue(s));
         const hasUnpaid = seat.currentStudents.some(s => isPaymentPending(s));
         if (!hasUnpaid) {
           return 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300';
+        } else if (hasOverdue) {
+          return 'bg-rose-100 border-rose-400 text-rose-900 dark:bg-rose-950/50 dark:border-rose-700 dark:text-rose-200 ring-1 ring-rose-300 dark:ring-rose-800';
         } else {
-          return 'bg-rose-100 border-rose-300 text-rose-800 dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300';
+          return 'bg-amber-100 border-amber-300 text-amber-900 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300';
         }
       } else {
         // Attendance Mode
@@ -385,8 +433,10 @@ export default function SeatsPage() {
         return seat.currentStudents.map(s => s.subscriptionPlan || 'Standard').join(', ');
       }
       if (viewMode === 'payment') {
-        const hasUnpaid = seat.currentStudents.some(s => s.feeStatus !== 'paid');
-        return !hasUnpaid ? 'Paid' : 'Unpaid/Partial';
+        const hasOverdue = seat.currentStudents.some(s => isStudentOverdue(s));
+        const hasUnpaid = seat.currentStudents.some(s => isPaymentPending(s));
+        if (!hasUnpaid) return 'Paid';
+        return hasOverdue ? 'Overdue (>10th)' : 'Unpaid (Due 10th)';
       } else {
         const hasAttendedToday = seat.currentStudents.some(student => isStudentPresentToday(student));
         return hasAttendedToday ? 'Present Today' : 'Absent Today';
@@ -449,13 +499,26 @@ export default function SeatsPage() {
             <div className="text-2xl font-bold text-purple-600">{allSubscriptionNames.length}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className="cursor-pointer hover:border-rose-300 transition-colors"
+          onClick={() => {
+            setViewMode('payment');
+            setStatusFilter(stats.overdueCount > 0 ? 'overdue' : 'unpaid');
+          }}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending Due</CardTitle>
+            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending / Overdue</CardTitle>
             <AlertCircle className="h-4 w-4 text-rose-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-rose-500">{stats.pendingPayments}</div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold text-rose-500">{stats.pendingPayments}</div>
+              {stats.overdueCount > 0 && (
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                  {stats.overdueCount} Overdue
+                </span>
+              )}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -468,6 +531,98 @@ export default function SeatsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Overdue Students Alert Panel (Students who haven't paid till 10th of the month) */}
+      {stats.overdueCount > 0 && (
+        <Card className="border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="p-2 rounded-lg bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300 shrink-0">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-bold text-rose-900 dark:text-rose-200">
+                      Overdue Students (Not Paid Till 10th)
+                    </h3>
+                    <Badge className="bg-rose-600 text-white text-[10px]">
+                      {stats.overdueCount} {stats.overdueCount === 1 ? 'Student' : 'Students'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-rose-700/80 dark:text-rose-300/80 mt-0.5">
+                    Monthly fees reset to unpaid on the 1st of every month. Students unpaid after the 10th are marked overdue.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant={statusFilter === 'overdue' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setViewMode('payment');
+                    setStatusFilter(statusFilter === 'overdue' ? 'all' : 'overdue');
+                  }}
+                  className={
+                    statusFilter === 'overdue'
+                      ? 'h-8 text-xs bg-rose-600 hover:bg-rose-700 text-white'
+                      : 'h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300'
+                  }
+                >
+                  {statusFilter === 'overdue' ? 'Show All Seats' : 'Filter Overdue Seats'}
+                </Button>
+                <Link href="/dashboard/payments">
+                  <Button size="sm" className="h-8 text-xs bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900">
+                    Collect Fee <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </Link>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowOverduePanel(!showOverduePanel)}
+                  className="h-8 px-2 text-rose-700 dark:text-rose-300"
+                >
+                  {showOverduePanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {showOverduePanel && (
+              <div className="mt-3 pt-3 border-t border-rose-200/70 dark:border-rose-900/50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                {stats.overdueStudentsList.map(({ student, seatNumber, floor }) => (
+                  <div
+                    key={student._id}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/60 shadow-2xs"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-extrabold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                          {seatNumber}
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {student.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
+                        <span className="flex items-center gap-0.5">
+                          <Phone className="h-2.5 w-2.5" /> {student.phone || 'N/A'}
+                        </span>
+                        <span>• {floor}</span>
+                      </div>
+                    </div>
+                    <Link href="/dashboard/payments">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-[10px] font-bold border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400">
+                        Pay
+                      </Button>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters, View Mode & Subscription Filter */}
       <Card className="overflow-visible shadow-sm">
@@ -544,7 +699,7 @@ export default function SeatsPage() {
             </div>
 
             {/* Filter by Payment / Availability Status */}
-            <div className="w-[160px]">
+            <div className="w-[180px]">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="All Statuses" />
@@ -552,7 +707,8 @@ export default function SeatsPage() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="unpaid">Unpaid / Partial</SelectItem>
+                  <SelectItem value="unpaid">Unpaid / Pending</SelectItem>
+                  <SelectItem value="overdue">Overdue (After 10th)</SelectItem>
                   <SelectItem value="available">Available (Empty)</SelectItem>
                   <SelectItem value="maintenance">Maintenance</SelectItem>
                 </SelectContent>
@@ -662,6 +818,14 @@ export default function SeatsPage() {
                                     </div>
                                   )}
                                   
+                                  <div className="absolute top-1 left-1 flex gap-1">
+                                    {viewMode === 'payment' && seat.isOccupied && seat.currentStudents?.some(s => isStudentOverdue(s)) && (
+                                      <div className="text-[7px] font-black bg-rose-600 text-white px-1 py-0.5 rounded shadow-sm tracking-wide">
+                                        OVERDUE
+                                      </div>
+                                    )}
+                                  </div>
+
                                   <div className="absolute top-1 right-1 flex gap-1">
                                     {seat.isAC && <div className="text-[7px] font-bold bg-white/70 dark:bg-black/50 px-1 rounded shadow-sm">AC</div>}
                                     {seat.genderCategory === 'boys' && <div className="text-[7px] font-bold bg-blue-200 text-blue-800 px-1 rounded shadow-sm">B</div>}
@@ -700,8 +864,20 @@ export default function SeatsPage() {
                                             </div>
                                             <div>
                                               <span className="text-slate-400 text-[10px] uppercase font-semibold">Payment</span>
-                                              <p className={!isPaymentPending(student) ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                                                {isPaymentPending(student) ? (student.feeStatus !== 'paid' ? student.feeStatus.toUpperCase() : 'OVERDUE') : 'PAID'}
+                                              <p className={
+                                                !isPaymentPending(student)
+                                                  ? 'text-emerald-400 font-bold'
+                                                  : isStudentOverdue(student)
+                                                  ? 'text-rose-400 font-bold'
+                                                  : 'text-amber-400 font-bold'
+                                              }>
+                                                {!isPaymentPending(student)
+                                                  ? 'PAID'
+                                                  : isStudentOverdue(student)
+                                                  ? 'OVERDUE (>10th)'
+                                                  : student.feeStatus === 'partial'
+                                                  ? 'PARTIAL'
+                                                  : 'UNPAID (Due 10th)'}
                                               </p>
                                             </div>
                                             <div>
@@ -826,7 +1002,8 @@ export default function SeatsPage() {
                     ) : viewMode === 'payment' ? (
                       <>
                         <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-emerald-100 border border-emerald-300"></div> Occupied (Paid)</div>
-                        <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-rose-100 border border-rose-300"></div> Occupied (Unpaid / Partial)</div>
+                        <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-amber-100 border border-amber-300"></div> Unpaid (Due 1st–10th)</div>
+                        <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-rose-100 border border-rose-400"></div> Overdue (Not Paid Till 10th)</div>
                         <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-blue-50 border border-blue-200"></div> Available (Empty)</div>
                         <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-slate-200 border border-slate-300"></div> Maintenance</div>
                       </>

@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import Student from '@/lib/models/Student';
 import Attendance from '@/lib/models/Attendance';
 import Organization from '@/lib/models/Organization';
+import Payment from '@/lib/models/Payment';
 
 export async function GET(request: NextRequest) {
   try {
@@ -63,6 +64,54 @@ export async function GET(request: NextRequest) {
       checkOutTime: org?.settings?.checkOutTime || '22:00',
     };
 
+    // Check 1st-of-month fee rule for accurate paid/unpaid gate
+    const now = new Date();
+    const currentYM = now.getFullYear() * 12 + now.getMonth();
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    let effectiveFeeStatus = student.feeStatus || 'unpaid';
+
+    try {
+      const sPayments = await Payment.find({
+        studentId: student._id,
+        status: { $in: ['completed', 'partial'] },
+        isFake: { $ne: true },
+      }).sort({ date: -1, createdAt: -1 });
+
+      if (sPayments.length > 0) {
+        const hasCompletedForMonth = sPayments.some((p: any) => {
+          if (p.status !== 'completed') return false;
+          const pDate = new Date(p.date || p.createdAt);
+          const pYM = pDate.getFullYear() * 12 + pDate.getMonth();
+          const monthsCovered = Math.max(1, Number(p.months || 1));
+          return currentYM >= pYM && currentYM < pYM + monthsCovered;
+        });
+        if (hasCompletedForMonth) {
+          effectiveFeeStatus = 'paid';
+        } else {
+          const hasPartial = sPayments.some((p: any) => {
+            if (p.status !== 'partial') return false;
+            const pDate = new Date(p.date || p.createdAt);
+            return pDate.getFullYear() === now.getFullYear() && pDate.getMonth() === now.getMonth();
+          });
+          effectiveFeeStatus = hasPartial ? 'partial' : 'unpaid';
+          if (student.feeStatus === 'paid') {
+            student.feeStatus = effectiveFeeStatus;
+            await student.save();
+          }
+        }
+      } else if (
+        student.feeStatus === 'paid' &&
+        student.feeDueDate &&
+        new Date(student.feeDueDate) <= startOfCurrentMonth
+      ) {
+        effectiveFeeStatus = 'unpaid';
+        student.feeStatus = 'unpaid';
+        await student.save();
+      }
+    } catch (e) {
+      console.error('Error verifying monthly fee status:', e);
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -76,13 +125,14 @@ export async function GET(request: NextRequest) {
           startTime: student.startTime || '08:00',
           endTime: student.endTime || '20:00',
           selectedShifts: student.selectedShifts || [],
-          feeStatus: student.feeStatus || 'unpaid',
+          feeStatus: effectiveFeeStatus,
           feeAmount: student.feeAmount || 0,
           feeDueDate: student.feeDueDate,
           subscriptionPlan: student.subscriptionPlan || 'basic',
           subscriptionExpiry: student.subscriptionExpiry,
           targetExam: student.targetExam || '',
           studyStage: student.studyStage || '',
+          examTargets: student.examTargets || [],
           joinDate: student.joinDate,
           isActive: student.isActive,
         },

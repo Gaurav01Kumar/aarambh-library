@@ -70,6 +70,15 @@ const StudentSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  examTargets: [{
+    examName: { type: String, required: true },
+    examDate: { type: Date, required: true },
+    totalScore: { type: Number, required: true },
+    targetScore: { type: Number, required: true },
+    isPrimary: { type: Boolean, default: false },
+    studyPlan: { type: mongoose.Schema.Types.Mixed, default: null },
+    createdAt: { type: Date, default: Date.now },
+  }],
   startTime: {
     type: String, // HH:mm
   },
@@ -118,5 +127,9 @@ const StudentSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-// Final rename to bypass cache one last time
+// Clear Mongoose model cache in Next.js dev mode to apply schema updates
+if (mongoose.models && mongoose.models.LibraryMember) {
+  delete mongoose.models.LibraryMember;
+}
+
 export default mongoose.models.LibraryMember || mongoose.model('LibraryMember', StudentSchema);

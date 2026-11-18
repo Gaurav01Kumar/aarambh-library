@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import Seat from '@/lib/models/Seat';
 import Student from '@/lib/models/Student'; // Note: This will use LibraryMember under the hood
 import Attendance from '@/lib/models/Attendance';
+import Payment from '@/lib/models/Payment';
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,6 +42,122 @@ export async function GET(request: NextRequest) {
     }
     const attendedStudentIds = new Set(todayAttendanceLogs.map(log => log.student.toString()));
 
+    // Monthly fee rule:
+    // On the 1st of every month, mark a student as unpaid if they haven't paid for the current month.
+    // After the 10th of the month, any unpaid student is considered overdue.
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+    const currentYM = currentYear * 12 + currentMonth;
+    const startOfCurrentMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    const isAfter10th = now.getDate() > 10;
+
+    let allPayments: any[] = [];
+    try {
+      allPayments = await Payment.find({
+        status: { $in: ['completed', 'partial'] },
+        isFake: { $ne: true },
+      }).sort({ date: -1, createdAt: -1 });
+    } catch (e) {
+      console.error('Error fetching payments for seat status:', e);
+    }
+
+    const paymentsByStudent = new Map<string, any[]>();
+    allPayments.forEach((p) => {
+      const sid = p.studentId?.toString();
+      if (!sid) return;
+      if (!paymentsByStudent.has(sid)) {
+        paymentsByStudent.set(sid, []);
+      }
+      paymentsByStudent.get(sid)!.push(p);
+    });
+
+    const stalePaidStudentIds: any[] = [];
+
+    const studentPaymentMeta = new Map<string, {
+      effectiveFeeStatus: 'paid' | 'unpaid' | 'partial';
+      paidForCurrentMonth: boolean;
+      isOverdue: boolean;
+      lastPaymentDate: string | null;
+    }>();
+
+    activeStudents.forEach((student: any) => {
+      const sid = student._id.toString();
+      const sPayments = paymentsByStudent.get(sid) || [];
+      const latestPayment = sPayments[0] || null;
+
+      // Check if any completed payment covers the current calendar month
+      const hasCompletedPaymentForCurrentMonth = sPayments.some((p) => {
+        if (p.status !== 'completed') return false;
+        const pDate = new Date(p.date || p.createdAt);
+        const pYM = pDate.getFullYear() * 12 + pDate.getMonth();
+        const monthsCovered = Math.max(1, Number(p.months || 1));
+        return currentYM >= pYM && currentYM < pYM + monthsCovered;
+      });
+
+      const hasPartialPaymentThisMonth = sPayments.some((p) => {
+        if (p.status !== 'partial') return false;
+        const pDate = new Date(p.date || p.createdAt);
+        return pDate.getFullYear() === currentYear && pDate.getMonth() === currentMonth;
+      });
+
+      let effectiveFeeStatus: 'paid' | 'unpaid' | 'partial' = student.feeStatus || 'unpaid';
+      let paidForCurrentMonth = hasCompletedPaymentForCurrentMonth;
+
+      if (hasCompletedPaymentForCurrentMonth) {
+        effectiveFeeStatus = 'paid';
+      } else if (hasPartialPaymentThisMonth) {
+        effectiveFeeStatus = 'partial';
+        paidForCurrentMonth = false;
+      } else if (sPayments.length > 0) {
+        // Student has payment history, but none covering the current month -> unpaid on 1st of month
+        effectiveFeeStatus = 'unpaid';
+        paidForCurrentMonth = false;
+        if (student.feeStatus === 'paid') {
+          stalePaidStudentIds.push(student._id);
+        }
+      } else {
+        // No payment history yet: check feeDueDate vs 1st of current month
+        const dueBeforeOrOnMonthStart = student.feeDueDate
+          ? new Date(student.feeDueDate) <= startOfCurrentMonth
+          : true;
+        if (student.feeStatus === 'paid' && !dueBeforeOrOnMonthStart) {
+          paidForCurrentMonth = true;
+          effectiveFeeStatus = 'paid';
+        } else {
+          effectiveFeeStatus = student.feeStatus === 'partial' ? 'partial' : 'unpaid';
+          paidForCurrentMonth = false;
+          if (student.feeStatus === 'paid') {
+            stalePaidStudentIds.push(student._id);
+          }
+        }
+      }
+
+      const isOverdue = !paidForCurrentMonth && (
+        isAfter10th ||
+        (student.feeDueDate ? new Date(student.feeDueDate) < startOfCurrentMonth : false)
+      );
+
+      studentPaymentMeta.set(sid, {
+        effectiveFeeStatus,
+        paidForCurrentMonth,
+        isOverdue,
+        lastPaymentDate: latestPayment ? (latestPayment.date || latestPayment.createdAt) : null,
+      });
+    });
+
+    // Persist 1st-of-month unpaid reset to DB so dashboard & other pages stay in sync
+    if (stalePaidStudentIds.length > 0) {
+      try {
+        await Student.updateMany(
+          { _id: { $in: stalePaidStudentIds } },
+          { $set: { feeStatus: 'unpaid' } }
+        );
+      } catch (e) {
+        console.error('Error syncing 1st-of-month unpaid status:', e);
+      }
+    }
+
     const studentBySeat = new Map();
     activeStudents.forEach(student => {
       if (student.seatNumber) {
@@ -76,12 +193,17 @@ export async function GET(request: NextRequest) {
             });
           }
 
+          const payMeta = studentPaymentMeta.get(student._id.toString());
+
           return {
             _id: student._id,
             name: student.name,
             email: student.email,
             phone: student.phone,
-            feeStatus: student.feeStatus,
+            feeStatus: payMeta?.effectiveFeeStatus || student.feeStatus,
+            paidForCurrentMonth: payMeta?.paidForCurrentMonth ?? false,
+            isOverdue: payMeta?.isOverdue ?? false,
+            lastPaymentDate: payMeta?.lastPaymentDate ?? null,
             feeDueDate: student.feeDueDate,
             isActive: student.isActive,
             subscriptionPlan: student.subscriptionPlan,

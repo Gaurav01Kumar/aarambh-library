@@ -137,10 +137,20 @@ export async function POST(request: NextRequest) {
       utr: finalUtr,
     });
 
-    // Update student fee status
+    // Update student fee status — next due date is the 1st of the month after paid months
+    const nextDueDate = new Date(
+      paymentDate.getFullYear(),
+      paymentDate.getMonth() + parseInt(months),
+      1,
+      0,
+      0,
+      0,
+      0
+    );
+
     await Student.findByIdAndUpdate(studentId, {
       feeStatus: studentFeeStatus,
-      feeDueDate: new Date(new Date(date).setMonth(new Date(date).getMonth() + parseInt(months))),
+      feeDueDate: nextDueDate,
     });
 
     // Trigger Admin Notification Email
